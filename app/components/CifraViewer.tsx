@@ -3,15 +3,22 @@
 
 import { useEffect, useRef, useState } from 'react';
 import PadraoMusical from '@/app/components/illustrations/PadraoMusical';
+import ChordDiagram from '@/app/components/ChordDiagram';
 
 interface CifraViewerProps {
   cifra: string;
-  tamanhoFonte?: number; // em px, permite zoom controlado pelo usuário
+  tamanhoFonte?: number;
 }
 
 interface AcordePosicionado {
   nome: string;
-  posicao: number; // índice de caractere na linha de letra (sem marcações)
+  posicao: number;
+}
+
+interface DiagramaAtivo {
+  acorde: string;
+  x: number;
+  y: number;
 }
 
 const VELOCIDADE_MIN = 0.1;
@@ -19,24 +26,16 @@ const VELOCIDADE_MAX = 1.5;
 const VELOCIDADE_PASSO = 0.1;
 const VELOCIDADE_INICIAL = 0.5;
 
-/**
- * Renderiza a cifra no formato padrão do mercado (Cifra Club / Ultimate Guitar):
- * uma linha de acordes posicionada ACIMA da letra, alinhada por coluna de
- * caractere, e a letra limpa abaixo - sem nenhuma marcação misturada nela.
- * Depende de fonte monoespaçada para o alinhamento de coluna funcionar.
- *
- * Inclui rolagem automática (0.1 a 1.5, em passos de 0.1) para uso "modo show",
- * com as mãos ocupadas no instrumento.
- */
 export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerProps) {
   const linhas = cifra.split('\n');
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const acumuladorRef = useRef(0); // guarda a fração de pixel entre frames
+  const acumuladorRef = useRef(0);
 
   const [rolando, setRolando] = useState(false);
   const [velocidade, setVelocidade] = useState(VELOCIDADE_INICIAL);
   const [duasColunas, setDuasColunas] = useState(false);
+  const [diagramaAtivo, setDiagramaAtivo] = useState<DiagramaAtivo | null>(null);
 
   useEffect(() => {
     if (!rolando) {
@@ -48,20 +47,12 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
     function passo() {
       const el = containerRef.current;
       if (el) {
-        // scrollTop só aceita incrementos inteiros de forma confiável em todo
-        // navegador. Em velocidades baixas (ex: 0.1px/frame), aplicar direto
-        // resultava em "nada acontece" até a fração acumular um pixel inteiro
-        // por conta própria - o que em 0.1 e 0.2 praticamente nunca ocorria
-        // de forma perceptível. Acumulamos a fração manualmente aqui.
         acumuladorRef.current += velocidade;
         const deslocamentoInteiro = Math.floor(acumuladorRef.current);
-
         if (deslocamentoInteiro >= 1) {
           el.scrollTop += deslocamentoInteiro;
           acumuladorRef.current -= deslocamentoInteiro;
         }
-
-        // Chegou ao fim: para automaticamente em vez de ficar tentando rolar
         if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
           setRolando(false);
           return;
@@ -84,8 +75,6 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
 
   return (
     <div className="area-impressao relative overflow-hidden rounded-2xl border border-border bg-panel">
-      {/* Textura decorativa: motivos de cifra/violão, bem sutil, atrás de tudo.
-          Mais visível no tema claro, que foi o pedido original. */}
       <PadraoMusical className="padrao-musical-fundo pointer-events-none absolute -right-8 -top-8 z-0 h-64 w-64" />
 
       <div className="no-print relative z-10 flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
@@ -133,46 +122,89 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
       >
         <div style={duasColunas ? { columns: 2, columnGap: '2rem' } : {}}>
           {linhas.map((linha, i) => (
-            <LinhaDaCifra key={i} linha={linha} />
+            <LinhaDaCifra
+              key={i}
+              linha={linha}
+              onAcordeHover={(acorde, x, y) => setDiagramaAtivo({ acorde, x, y })}
+              onAcordeLeave={() => setDiagramaAtivo(null)}
+            />
           ))}
         </div>
       </div>
+
+      {/* Diagrama flutuante */}
+      {diagramaAtivo && (
+        <ChordDiagram
+          acorde={diagramaAtivo.acorde}
+          x={diagramaAtivo.x}
+          y={diagramaAtivo.y}
+        />
+      )}
     </div>
   );
 }
 
-function LinhaDaCifra({ linha }: { linha: string }) {
+function LinhaDaCifra({
+  linha,
+  onAcordeHover,
+  onAcordeLeave,
+}: {
+  linha: string;
+  onAcordeHover: (acorde: string, x: number, y: number) => void;
+  onAcordeLeave: () => void;
+}) {
   const { letraLimpa, acordes } = extrairAcordesEPosicoes(linha);
 
-  // Linha sem nenhum acorde: não desperdiça espaço com uma linha vazia em cima
   if (acordes.length === 0) {
     return <div className="whitespace-pre">{letraLimpa || '\u00A0'}</div>;
   }
 
-  // Monta a linha de acordes: espaços até cada posição, depois o nome do acorde
   let linhaDeAcordes = '';
   acordes.forEach((acorde) => {
     while (linhaDeAcordes.length < acorde.posicao) linhaDeAcordes += ' ';
     linhaDeAcordes += acorde.nome;
   });
 
+  // Reconstrói a linha de acordes como spans clicáveis
+  const partes: { texto: string; acorde?: string }[] = [];
+  let cursor = 0;
+  acordes.forEach((acorde) => {
+    if (acorde.posicao > cursor) {
+      partes.push({ texto: ' '.repeat(acorde.posicao - cursor) });
+    }
+    partes.push({ texto: acorde.nome, acorde: acorde.nome });
+    cursor = acorde.posicao + acorde.nome.length;
+  });
+  if (cursor < linhaDeAcordes.length) {
+    partes.push({ texto: linhaDeAcordes.slice(cursor) });
+  }
+
   return (
     <div className="mt-3 first:mt-0">
       <div className="whitespace-pre font-bold text-violeta">
-        {linhaDeAcordes}
+        {partes.map((parte, i) =>
+          parte.acorde ? (
+            <span
+              key={i}
+              className="cursor-pointer rounded px-0.5 transition hover:bg-violeta hover:text-white"
+              onMouseEnter={(e) => {
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                onAcordeHover(parte.acorde!, rect.left + rect.width / 2, rect.top);
+              }}
+              onMouseLeave={onAcordeLeave}
+            >
+              {parte.texto}
+            </span>
+          ) : (
+            <span key={i}>{parte.texto}</span>
+          )
+        )}
       </div>
       <div className="whitespace-pre">{letraLimpa || '\u00A0'}</div>
     </div>
   );
 }
 
-/**
- * Separa uma linha como "{G}Quando eu {Am}penso" em:
- * - letraLimpa: "Quando eu penso" (sem marcações)
- * - acordes: [{nome: "G", posicao: 0}, {nome: "Am", posicao: 9}]
- * A posição é calculada em relação ao texto JÁ limpo, que é o que
- * garante o alinhamento visual correto entre as duas linhas.
- */
 function extrairAcordesEPosicoes(linha: string): {
   letraLimpa: string;
   acordes: AcordePosicionado[];
