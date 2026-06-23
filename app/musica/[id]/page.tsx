@@ -57,8 +57,6 @@ export default function MusicaPage() {
   function handleTomDetectado(nota: NomeNota, estabilidadePercentual: number) {
     setTomDetectado(nota);
     setEstabilidade(estabilidadePercentual);
-    // Persistência real: alimenta Perfil Vocal, Músicas Recentes e
-    // Estatísticas na home com dados genuínos desta detecção.
     registrarDeteccao(song!.id, nota, estabilidadePercentual);
   }
 
@@ -67,8 +65,11 @@ export default function MusicaPage() {
     setEstabilidade(null);
   }
 
-setFavorito(novaLista.some((item) => item.id === song!.id));
-  // Cor do indicador de estabilidade: turquesa (alta confiança) ou amarelo (média/atenção)
+  function toggleFavorito() {
+    const novaLista = alternarFavorito(song!.id);
+    setFavorito(novaLista.some((item) => item.id === song!.id));
+  }
+
   const corEstabilidade =
     estabilidade !== null && estabilidade >= 70 ? 'turquesa' : 'amarelo';
 
@@ -153,7 +154,6 @@ setFavorito(novaLista.some((item) => item.id === song!.id));
         </Sidebar>
 
         <div className="min-w-0 flex-1">
-          {/* Título simplificado, visível só na impressão */}
           <div className="hidden print:block print:mb-4">
             <h1 className="text-xl font-bold">{song.titulo}</h1>
             <p className="text-sm">
