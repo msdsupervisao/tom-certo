@@ -67,11 +67,7 @@ export default function MusicaPage() {
     setEstabilidade(null);
   }
 
-  function toggleFavorito() {
-    const novaLista = alternarFavorito(song!.id);
-    setFavorito(novaLista);
-  }
-
+setFavorito(novaLista.some((item) => item.id === song!.id));
   // Cor do indicador de estabilidade: turquesa (alta confiança) ou amarelo (média/atenção)
   const corEstabilidade =
     estabilidade !== null && estabilidade >= 70 ? 'turquesa' : 'amarelo';
