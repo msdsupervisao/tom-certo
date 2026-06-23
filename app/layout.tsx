@@ -1,0 +1,25 @@
+import type { Metadata } from 'next';
+import './globals.css';
+import NavbarComFavoritos from '@/app/components/NavbarComFavoritos';
+
+export const metadata: Metadata = {
+  title: 'Tom Certo — Cifras no seu tom',
+  description: 'Cante um trecho, receba a cifra no seu tom — sem ficar adivinhando capotraste.',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="pt-BR" data-theme="dark">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('tom-certo-tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
+      </head>
+      <body className="min-h-screen bg-bg text-text antialiased">
+        <NavbarComFavoritos />
+        <div className="mx-auto max-w-md px-5 py-8 md:max-w-3xl md:px-8 lg:max-w-5xl">
+          {children}
+        </div>
+      </body>
+    </html>
+  );
+}
+

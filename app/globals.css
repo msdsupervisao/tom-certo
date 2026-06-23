@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ============================================================
+   TOM CERTO — DESIGN SYSTEM
+   Todas as variáveis vivem aqui. Nenhum componente deve usar
+   um valor de cor, espaçamento ou fonte que não venha de uma
+   destas variáveis — isso é o que mantém o sistema consistente
+   conforme o produto cresce.
+   ============================================================ */
+:root {
+  /* --- Cores de marca (mesmas em ambos os temas) --- */
+  --color-primary: #ff5d8f;       /* rosa-show: ação principal, CTAs */
+  --color-primary-hover: #ff3d78;
+  --color-secondary: #6c5ce7;     /* violeta-cifra: acordes, elementos musicais */
+  --color-secondary-hover: #5b4bd1;
+
+  /* --- Estados semânticos --- */
+  --color-success: #2dd4bf;       /* turquesa-afinação: confirmação, alta confiança */
+  --color-warning: #ffd23f;       /* amarelo-microfone: atenção, confiança média */
+  --color-error: #ff4d6a;         /* vermelho-desafinado: erro, baixa confiança */
+
+  /* --- Tipografia --- */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --text-xs: 0.75rem;    /* 12px - legendas, metadados */
+  --text-sm: 0.875rem;   /* 14px - corpo secundário */
+  --text-base: 1rem;     /* 16px - corpo padrão */
+  --text-lg: 1.125rem;   /* 18px - subtítulos */
+  --text-xl: 1.5rem;     /* 24px - título de seção */
+  --text-2xl: 2rem;      /* 32px - título de página */
+  --text-3xl: 2.75rem;   /* 44px - hero */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* --- Espaçamento (escala base 4px) --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  /* --- Raio e sombra --- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px rgba(13, 10, 31, 0.06);
+  --shadow-md: 0 8px 24px rgba(13, 10, 31, 0.12);
+
+  /* --- Tema escuro (padrão) --- */
+  --bg: #0d0a1f;
+  --bg-soft: #16122e;
+  --panel: #1c1638;
+  --text: #f4f1fb;
+  --text-dim: #a39bc9;
+  --border: #2e2654;
+
+  /* aliases legados usados nos componentes existentes */
+  --rosa: var(--color-primary);
+  --amarelo: var(--color-warning);
+  --violeta: var(--color-secondary);
+  --turquesa: var(--color-success);
+}
+
+[data-theme='light'] {
+  --bg: #fef6e4;
+  --bg-soft: #fdeed0;
+  --panel: #ffffff;
+  --text: #2b1a3d;
+  --text-dim: #6b5d8a;
+  --border: #ecdcc0;
+
+  --color-primary: #e0356f;
+  --color-primary-hover: #c92a60;
+  --color-secondary: #5b3fd6;
+  --color-secondary-hover: #4c34b8;
+  --color-success: #0d9488;
+  --color-warning: #d99b00;
+  --color-error: #dc2645;
+
+  --rosa: var(--color-primary);
+  --amarelo: var(--color-warning);
+  --violeta: var(--color-secondary);
+  --turquesa: var(--color-success);
+  --shadow-sm: 0 1px 2px rgba(43, 26, 61, 0.06);
+  --shadow-md: 0 8px 24px rgba(43, 26, 61, 0.1);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+@keyframes onda {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.padrao-musical-fundo {
+  color: var(--violeta);
+  opacity: 0.05;
+}
+[data-theme='light'] .padrao-musical-fundo {
+  opacity: 0.12;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .area-impressao {
+    border: none !important;
+    background: white !important;
+  }
+  .area-impressao .relative.z-10.max-h-\[60vh\] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

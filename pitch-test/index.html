@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Teste de Detecção de Pitch — Tom Certo</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 480px;
+    margin: 40px auto;
+    padding: 0 20px;
+    background: #0f0f0f;
+    color: #f0f0f0;
+  }
+  h1 { font-size: 20px; }
+  p.descricao { color: #999; font-size: 14px; line-height: 1.5; }
+  button {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: none;
+    background: #4f46e5;
+    color: white;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+  button:disabled { background: #444; cursor: not-allowed; }
+  button.gravando { background: #dc2626; }
+  .resultado {
+    margin-top: 24px;
+    padding: 20px;
+    border-radius: 12px;
+    background: #1a1a1a;
+    text-align: center;
+  }
+  .nota {
+    font-size: 48px;
+    font-weight: bold;
+    color: #4f46e5;
+  }
+  .freq { color: #999; font-size: 14px; }
+  .confianca { margin-top: 8px; font-size: 13px; }
+  .confianca.alta { color: #22c55e; }
+  .confianca.media { color: #eab308; }
+  .confianca.baixa { color: #ef4444; }
+  #log {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #666;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .barra {
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .barra-fill {
+    height: 100%;
+    background: #4f46e5;
+    width: 0%;
+    transition: width 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎤 Teste isolado: detecção de pitch</h1>
+<p class="descricao">
+  Esta é a Etapa 0 — não é o app final. O objetivo é validar, antes de construir
+  qualquer outra coisa, se o algoritmo de detecção de tom funciona bem em condições
+  reais (microfone do seu celular, ambiente real, sua voz). Cante uma nota sustentada
+  e veja se a detecção corresponde ao que você está cantando.
+</p>
+
+<div id="seletorMicDiv" style="margin-top:16px;">
+  <label style="font-size:13px;color:#999;">Microfone:</label>
+  <select id="seletorMic" style="width:100%;padding:10px;border-radius:8px;background:#1a1a1a;color:#fff;border:1px solid #333;margin-top:4px;"></select>
+</div>
+
+<button id="btnGravar">🎙️ Começar a cantar</button>
+<div class="barra"><div class="barra-fill" id="barraFill"></div></div>
+<div id="nivelBruto" style="font-size:12px;color:#888;margin-top:4px;">Nível bruto do sinal: —</div>
+
+<div class="resultado" id="resultado" style="display:none;">
+  <div class="nota" id="nota">—</div>
+  <div class="freq" id="freq"></div>
+  <div class="confianca" id="confianca"></div>
+</div>
+
+<div id="log"></div>
+
+<script>
+// ============================================================
+// TESTE ISOLADO DE PITCH DETECTION
+// Algoritmo: autocorrelação (mesma família do YIN, mais simples
+// de implementar sem dependências externas para este teste rápido)
+// ============================================================
+
+const btnGravar = document.getElementById('btnGravar');
+const seletorMic = document.getElementById('seletorMic');
+const nivelBrutoEl = document.getElementById('nivelBruto');
+const resultadoDiv = document.getElementById('resultado');
+const notaEl = document.getElementById('nota');
+const freqEl = document.getElementById('freq');
+const confiancaEl = document.getElementById('confianca');
+const logEl = document.getElementById('log');
+const barraFill = document.getElementById('barraFill');
+
+let audioContext = null;
+let analyser = null;
+let microfone = null;
+let gravando = false;
+let animationFrameId = null;
+let amostrasColetadas = []; // guarda histórico de detecções para ver estabilidade
+
+// Nomes das notas em notação musical, começando do Dó (C)
+const NOMES_NOTAS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// ============================================================
+// DIAGNÓSTICO: lista os microfones disponíveis no sistema
+// Isso ajuda a identificar se o navegador está usando um device
+// errado (ex: microfone virtual, fone desconectado, etc)
+// ============================================================
+async function listarMicrofones() {
+  try {
+    // Precisa pedir permissão básica primeiro para os labels aparecerem
+    await navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      stream.getTracks().forEach(track => track.stop());
+    });
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const microfones = devices.filter(d => d.kind === 'audioinput');
+
+    seletorMic.innerHTML = '';
+    microfones.forEach((mic, index) => {
+      const option = document.createElement('option');
+      option.value = mic.deviceId;
+      option.textContent = mic.label || `Microfone ${index + 1}`;
+      seletorMic.appendChild(option);
+    });
+
+    log(`Encontrados ${microfones.length} microfone(s) disponível(is).`);
+  } catch (erro) {
+    log('Erro ao listar microfones: ' + erro.message);
+  }
+}
+
+listarMicrofones();
+
+
+
+
+function log(msg) {
+  logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
+}
+
+// Converte frequência em Hz para o nome da nota mais próxima + quantos cents de desvio
+function frequenciaParaNota(frequencia) {
+  if (frequencia <= 0) return null;
+  // A4 = 440Hz é a referência padrão
+  const A4 = 440;
+  const semitomEntreA4 = 12 * Math.log2(frequencia / A4);
+  const semitomArredondado = Math.round(semitomEntreA4);
+  const centsDeDesvio = Math.round((semitomEntreA4 - semitomArredondado) * 100);
+
+  // A4 é índice 9 (A) na nossa lista de 12 notas, então ajustamos o índice
+  let indiceNota = (9 + semitomArredondado) % 12;
+  if (indiceNota < 0) indiceNota += 12;
+
+  const oitava = 4 + Math.floor((9 + semitomArredondado) / 12);
+
+  return {
+    nome: NOMES_NOTAS[indiceNota],
+    oitava: oitava,
+    cents: centsDeDesvio,
+    frequencia: frequencia
+  };
+}
+
+// Algoritmo de autocorrelação: encontra a frequência fundamental
+// comparando o sinal de áudio com versões deslocadas de si mesmo.
+// Quando a defasagem corresponde ao período da onda, a correlação é máxima.
+function detectarPitchAutocorrelacao(buffer, sampleRate) {
+  const tamanho = buffer.length;
+
+  // Calcula o RMS (volume) para descartar silêncio/ruído muito baixo
+  let somaQuadrados = 0;
+  for (let i = 0; i < tamanho; i++) {
+    somaQuadrados += buffer[i] * buffer[i];
+  }
+  const rms = Math.sqrt(somaQuadrados / tamanho);
+
+  // Se o volume está muito baixo, não há sinal confiável para analisar
+  if (rms < 0.01) {
+    return { frequencia: -1, confianca: 0, motivo: 'silencio' };
+  }
+
+  // Limites de frequência humana cantada: ~70Hz (voz grave) a ~1000Hz (voz aguda/falsete)
+  const freqMinima = 70;
+  const freqMaxima = 1000;
+  const periodoMaximo = Math.floor(sampleRate / freqMinima);
+  const periodoMinimo = Math.floor(sampleRate / freqMaxima);
+
+  let melhorCorrelacao = 0;
+  let melhorPeriodo = -1;
+
+  for (let periodo = periodoMinimo; periodo <= periodoMaximo; periodo++) {
+    let correlacao = 0;
+    let normalizacao = 0;
+
+    for (let i = 0; i < tamanho - periodo; i++) {
+      correlacao += buffer[i] * buffer[i + periodo];
+      normalizacao += buffer[i] * buffer[i];
+    }
+
+    if (normalizacao > 0) {
+      correlacao = correlacao / normalizacao;
+    }
+
+    if (correlacao > melhorCorrelacao) {
+      melhorCorrelacao = correlacao;
+      melhorPeriodo = periodo;
+    }
+  }
+
+  if (melhorPeriodo === -1 || melhorCorrelacao < 0.3) {
+    return { frequencia: -1, confianca: melhorCorrelacao, motivo: 'sem_pico_claro' };
+  }
+
+  const frequenciaDetectada = sampleRate / melhorPeriodo;
+
+  return {
+    frequencia: frequenciaDetectada,
+    confianca: melhorCorrelacao,
+    motivo: 'ok'
+  };
+}
+
+function classificarConfianca(valor) {
+  if (valor > 0.8) return 'alta';
+  if (valor > 0.5) return 'media';
+  return 'baixa';
+}
+
+function loopDeAnalise() {
+  if (!gravando) return;
+
+  const bufferLength = analyser.fftSize;
+  const buffer = new Float32Array(bufferLength);
+  analyser.getFloatTimeDomainData(buffer);
+
+  const resultado = detectarPitchAutocorrelacao(buffer, audioContext.sampleRate);
+
+  // Atualiza a barra de volume visual (feedback de que o microfone está captando)
+  let pico = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    pico = Math.max(pico, Math.abs(buffer[i]));
+  }
+  barraFill.style.width = Math.min(pico * 300, 100) + '%';
+  nivelBrutoEl.textContent = `Nível bruto do sinal: ${pico.toFixed(4)} (RMS aproximado)`;
+
+  if (resultado.frequencia > 0) {
+    const nota = frequenciaParaNota(resultado.frequencia);
+    if (nota) {
+      notaEl.textContent = `${nota.nome}${nota.oitava}`;
+      freqEl.textContent = `${resultado.frequencia.toFixed(1)} Hz · ${nota.cents > 0 ? '+' : ''}${nota.cents} cents`;
+      confiancaEl.textContent = `Confiança: ${(resultado.confianca * 100).toFixed(0)}%`;
+      confiancaEl.className = 'confianca ' + classificarConfianca(resultado.confianca);
+
+      amostrasColetadas.push(nota.nome + nota.oitava);
+      if (amostrasColetadas.length > 30) amostrasColetadas.shift();
+    }
+  } else {
+    notaEl.textContent = '—';
+    freqEl.textContent = resultado.motivo === 'silencio' ? 'Sem som detectado' : 'Sem pitch claro';
+    confiancaEl.textContent = '';
+  }
+
+  animationFrameId = requestAnimationFrame(loopDeAnalise);
+}
+
+async function iniciarGravacao() {
+  try {
+    const deviceIdSelecionado = seletorMic.value;
+
+    const constraints = {
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        // Usa o microfone específico escolhido no seletor, se houver um selecionado
+        ...(deviceIdSelecionado ? { deviceId: { exact: deviceIdSelecionado } } : {})
+      }
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+
+    microfone = audioContext.createMediaStreamSource(stream);
+    microfone.connect(analyser);
+
+    gravando = true;
+    amostrasColetadas = [];
+    btnGravar.textContent = '⏹️ Parar';
+    btnGravar.classList.add('gravando');
+    resultadoDiv.style.display = 'block';
+
+    log(`Gravação iniciada com microfone: "${seletorMic.options[seletorMic.selectedIndex]?.textContent || 'padrão'}". Cante uma nota sustentada (ex: "ahhh") por 3-5 segundos.`);
+    loopDeAnalise();
+
+  } catch (erro) {
+    log('ERRO ao acessar microfone: ' + erro.message);
+    alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
+  }
+}
+
+function pararGravacao() {
+  gravando = false;
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  if (microfone) microfone.disconnect();
+  if (audioContext) audioContext.close();
+
+  btnGravar.textContent = '🎙️ Começar a cantar';
+  btnGravar.classList.remove('gravando');
+  barraFill.style.width = '0%';
+
+  // Mostra qual nota foi mais consistente nas últimas amostras —
+  // isso simula o que o app real vai usar: a "moda" das detecções, não um instante isolado
+  if (amostrasColetadas.length > 0) {
+    const contagem = {};
+    amostrasColetadas.forEach(n => contagem[n] = (contagem[n] || 0) + 1);
+    const maisFrequente = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0];
+    const estabilidade = (maisFrequente[1] / amostrasColetadas.length * 100).toFixed(0);
+    log(`RESULTADO FINAL: nota mais frequente = ${maisFrequente[0]} (estável em ${estabilidade}% das amostras)`);
+  }
+}
+
+btnGravar.addEventListener('click', () => {
+  if (gravando) {
+    pararGravacao();
+  } else {
+    iniciarGravacao();
+  }
+});
+</script>
+</body>
+</html>
