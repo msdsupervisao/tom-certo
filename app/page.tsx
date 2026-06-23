@@ -24,6 +24,14 @@ export default function Home() {
   const [favoritos, setFavoritos] = useState<string[]>([]);
   const [favoritosCompletos, setFavoritosCompletos] = useState<Array<{id: string; titulo?: string; artista?: string; slug: string; isMock: boolean}>>([]);
   const [visitadas, setVisitadas] = useState<MusicaVisitada[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   function recarregarDados() {
     setPerfil({
@@ -36,31 +44,24 @@ export default function Home() {
       const raw = localStorage.getItem('tom-certo:favoritos');
       if (!raw) { setFavoritos([]); return; }
       const parsed = JSON.parse(raw);
-      // Normaliza formato antigo (array de strings) e novo (array de objetos)
       const ids = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
       setFavoritos(ids);
-      // Monta lista completa com título/artista para exibição
       const itens = parsed.map((x: any) => {
         const id = typeof x === 'string' ? x : x.id;
         const mockSong = buscarMusicaPorId(id);
         if (mockSong) return { id, titulo: mockSong.titulo, artista: mockSong.artista, slug: id, isMock: true };
-        // Música do Cifra Club — tem slug no formato "artista/musica"
         return { id, titulo: x.titulo, artista: x.artista, slug: id, isMock: false };
       });
       setFavoritosCompletos(itens);
-    setVisitadas(obterMusicasVisitadas(12));
+      setVisitadas(obterMusicasVisitadas(12));
     } catch { setFavoritos([]); }
   }
 
-  // Roda toda vez que o pathname muda (voltou para a home)
   useEffect(() => {
     recarregarDados();
-    // escutarStorage ouve: evento customizado (mesma aba), popstate (botão voltar) e focus (outra aba)
     return escutarStorage(recarregarDados);
   }, [pathname]);
 
-  // Busca capas para músicas visitadas e favoritadas
-  // Roda sempre que visitadas ou favoritosCompletos mudam (inclusive ao voltar)
   useEffect(() => {
     const todas = [
       ...visitadas.map(v => ({ id: v.id, titulo: v.titulo, artista: v.artista })),
@@ -68,7 +69,6 @@ export default function Home() {
     ];
     todas.forEach(item => {
       if (!item.titulo) return;
-      // Se já está no cache, aplica imediatamente sem buscar de novo
       if (CACHE_CAPAS[item.id]) {
         setCapas(prev => ({ ...prev, [item.id]: CACHE_CAPAS[item.id] }));
         return;
@@ -113,13 +113,13 @@ export default function Home() {
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
       {/* HERO */}
-      <section style={{ background: 'linear-gradient(135deg, #0d0a1f 0%, #1a0a2e 50%, #0d1a2e 100%)', padding: '48px 24px 64px', position: 'relative', overflow: 'hidden' }}>
+      <section style={{ background: 'linear-gradient(135deg, #0d0a1f 0%, #1a0a2e 50%, #0d1a2e 100%)', padding: isMobile ? '32px 16px 48px' : '48px 24px 64px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 0, left: '20%', width: 200, height: 400, background: 'radial-gradient(ellipse, rgba(108,92,231,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', top: 0, right: '15%', width: 200, height: 350, background: 'radial-gradient(ellipse, rgba(255,93,143,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 32 : 48, alignItems: 'center' }}>
           <div>
-            <h1 style={{ fontSize: 'clamp(2rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, color: '#fff' }}>
+            <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, color: '#fff' }}>
               Pare de adivinhar o capotraste.
             </h1>
             <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', marginBottom: 32, lineHeight: 1.6 }}>
@@ -184,10 +184,10 @@ export default function Home() {
         </div>
       </section>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
         {/* COMO FUNCIONA */}
         <section style={{ padding: '36px 0 28px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
             {[
               { n: 1, icon: '🎙️', title: 'Cante uma referência', desc: 'Cante por 10-15s em voz confortável.' },
               { n: 2, icon: '🎵', title: 'Analisamos seu tom', desc: 'Nosso algoritmo detecta sua nota fundamental.' },
@@ -235,14 +235,14 @@ export default function Home() {
           <FavoritosSection favoritosCompletos={favoritosCompletos} capas={capas} toggleFav={toggleFav} />
         )}
 
-        {/* HISTÓRICO / EM DESTAQUE */}
+        {/* HISTÓRICO */}
         <section style={{ marginBottom: 48 }}>
           {visitadas.length > 0 ? (
             <>
               <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-dim)', marginBottom: 14 }}>
                 🕐 Acessadas recentemente
               </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
                 {visitadas.map(item => (
                   <VisitadaCard
                     key={item.id}
@@ -267,42 +267,6 @@ export default function Home() {
       </div>
 
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
-    </div>
-  );
-}
-
-function SongCard({ song, capa, isFav, onFav }: { song: any; capa?: string; isFav: boolean; onFav: () => void }) {
-  const acordes = song.cifra.match(/\{([^}]+)\}/g)?.slice(0, 4).map((a: string) => a.replace(/[{}]/g, '')) || [];
-  return (
-    <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ height: 110, background: capa ? `url(${capa}) center/cover` : 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 20%, rgba(0,0,0,0.75))' }} />
-        <div style={{ position: 'absolute', top: 8, left: 8, background: 'var(--violeta)', borderRadius: 8, padding: '2px 10px', fontSize: 12, fontWeight: 700, color: '#fff' }}>{song.tomOriginal}</div>
-        <button onClick={(e) => { e.stopPropagation(); onFav(); }}
-          style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isFav ? '❤️' : '🤍'}
-        </button>
-      </div>
-      <div style={{ padding: '12px 14px' }}>
-        <p style={{ fontWeight: 700, margin: '0 0 2px', fontSize: 15 }}>{song.titulo}</p>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 10px' }}>{song.artista}</p>
-        {acordes.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 11 }}>
-            <div>
-              <p style={{ margin: '0 0 2px', color: 'var(--text-dim)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cifra original</p>
-              <div style={{ display: 'flex', gap: 4 }}>{acordes.map((a: string, i: number) => <span key={i} style={{ color: 'var(--text-dim)', fontWeight: 600 }}>{a}</span>)}</div>
-            </div>
-            <span style={{ color: 'var(--violeta)' }}>→</span>
-            <div>
-              <p style={{ margin: '0 0 2px', color: 'var(--turquesa)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Na sua voz</p>
-              <div style={{ display: 'flex', gap: 4 }}>{acordes.map((a: string, i: number) => <span key={i} style={{ color: 'var(--turquesa)', fontWeight: 700 }}>{a}</span>)}</div>
-            </div>
-          </div>
-        )}
-        <Link href={`/musica/${song.id}`} style={{ display: 'block', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px', fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>
-          Ver cifra
-        </Link>
-      </div>
     </div>
   );
 }
@@ -365,7 +329,6 @@ function FavoritosSection({ favoritosCompletos, capas, toggleFav }: {
 
       {expandido && (
         <>
-          {/* Cards compactos em linha horizontal com scroll, hover expande */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {lista.map(item => {
               const titulo = item.titulo || item.id.split('/')[1]?.replace(/-/g, ' ') || 'Música';
@@ -403,7 +366,7 @@ function FavoritosSection({ favoritosCompletos, capas, toggleFav }: {
                     </div>
                     <div style={{ padding: '8px 10px' }}>
                       <p style={{ fontWeight: 700, margin: 0, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</p>
-                      <p style={{ fontSize: 10, color: 'var(--text-dim)', margin: '2px 0 0' , whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artista}</p>
+                      <p style={{ fontSize: 10, color: 'var(--text-dim)', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artista}</p>
                     </div>
                   </Link>
                   <button
