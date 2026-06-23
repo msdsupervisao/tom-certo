@@ -1,9 +1,5 @@
 'use client';
 
-// Banco de diagramas: posições dos dedos para os acordes mais comuns
-// Formato: [corda6, corda5, corda4, corda3, corda2, corda1]
-// -1 = corda muda (X), 0 = corda solta, 1-4 = dedo na casa
-
 const DIAGRAMAS: Record<string, number[]> = {
   'C':   [-1, 3, 2, 0, 1, 0],
   'D':   [-1, -1, 0, 2, 3, 2],
@@ -56,7 +52,6 @@ interface Props {
 }
 
 export default function ChordDiagram({ acorde, x, y }: Props) {
-  // Tenta encontrar o diagrama — remove sufixos se necessário
   const casas = DIAGRAMAS[acorde] || tentarVariacoes(acorde);
 
   const CASAS = 4;
@@ -69,7 +64,6 @@ export default function ChordDiagram({ acorde, x, y }: Props) {
   const LARGURA_TOTAL = LARGURA + MARGEM_ESQ * 2;
   const ALTURA_TOTAL = ALTURA + MARGEM_TOP + 20;
 
-  // Posição do tooltip — tenta não sair da tela
   const tooltipX = Math.max(8, x - LARGURA_TOTAL / 2);
   const tooltipY = y - ALTURA_TOTAL - 12;
 
@@ -151,7 +145,7 @@ export default function ChordDiagram({ acorde, x, y }: Props) {
           />
         ))}
 
-        {/* Número da casa (para acordes com pestana alta) */}
+        {/* Número da casa */}
         {mostrarNumeroCasa && (
           <text
             x={MARGEM_ESQ - 14}
@@ -163,12 +157,11 @@ export default function ChordDiagram({ acorde, x, y }: Props) {
           </text>
         )}
 
-        {/* Dedos e X/O */}
+        {/* Dedos, X e O — corda 6 (índice 0) à esquerda */}
         {casas.map((casa, cordaIdx) => {
-          const cx = MARGEM_ESQ + (CORDAS - 1 - cordaIdx) * ESPACAMENTO;
+          const cx = MARGEM_ESQ + cordaIdx * ESPACAMENTO;
 
           if (casa === -1) {
-            // X — corda muda
             return (
               <text key={cordaIdx} x={cx - 4} y={MARGEM_TOP - 8} fontSize={11} fill="#e74c3c" fontWeight="bold">
                 ✕
@@ -176,7 +169,6 @@ export default function ChordDiagram({ acorde, x, y }: Props) {
             );
           }
           if (casa === 0) {
-            // O — corda solta
             return (
               <circle key={cordaIdx} cx={cx} cy={MARGEM_TOP - 9} r={5} fill="none" stroke="var(--text-dim, #aaa)" strokeWidth={1.5} />
             );
@@ -195,7 +187,6 @@ export default function ChordDiagram({ acorde, x, y }: Props) {
 }
 
 function tentarVariacoes(acorde: string): number[] | null {
-  // Tenta remover sufixos comuns para encontrar acorde base
   const variacoes = [
     acorde.replace(/maj7|maj9|add9|sus[24]|dim|aug|\/.*$/g, ''),
     acorde.replace(/[0-9]/g, ''),
