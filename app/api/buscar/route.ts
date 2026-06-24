@@ -9,28 +9,40 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://api.cifraclub.com.br/search?q=${encodeURIComponent(q)}&per_page=8`
+    const busca = `site:cifraclub.com.br ${q}`
+    const url = `https://www.google.com/search?q=${encodeURIComponent(busca)}&num=10`
+    
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json',
-        'Referer': 'https://www.cifraclub.com.br/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
       },
     })
 
-    if (!res.ok) {
-      return NextResponse.json({ resultados: [] })
+    const html = await res.text()
+    const resultados: { titulo: string; artista: string; url: string; slug: string }[] = []
+
+    // Extrai links do cifraclub dos resultados do Google
+    const linkRegex = /https?:\/\/www\.cifraclub\.com\.br\/([a-z0-9-]+)\/([a-z0-9-]+)\//g
+    const encontrados = new Set<string>()
+    let m: RegExpExecArray | null
+
+    while ((m = linkRegex.exec(html)) !== null && resultados.length < 8) {
+      const artista = m[1]
+      const musica = m[2]
+      const slug = `${artista}/${musica}`
+      
+      if (encontrados.has(slug)) continue
+      encontrados.add(slug)
+
+      resultados.push({
+        titulo: musica.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        artista: artista.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        url: `https://www.cifraclub.com.br/${slug}/`,
+        slug,
+      })
     }
-
-    const data = await res.json()
-    const items = data?.data || data?.items || data?.results || []
-
-    const resultados = items.slice(0, 8).map((item: any) => ({
-      titulo: item.name || item.title || '',
-      artista: item.artist?.name || item.artist || '',
-      url: `https://www.cifraclub.com.br/${item.artist?.url || ''}/${item.url || ''}/`,
-      slug: `${item.artist?.url || ''}/${item.url || ''}`,
-    })).filter((r: any) => r.titulo && r.artista)
 
     return NextResponse.json({ resultados })
   } catch {
