@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ThemeToggle from '@/app/components/ThemeToggle';
 import PainelFavoritos from '@/app/components/PainelFavoritos';
 import { useAuth } from '@/app/components/AuthProvider';
+import { supabase } from '@/lib/supabase';
 
 export default function NavbarComFavoritos() {
   const [painelAberto, setPainelAberto] = useState(false);
@@ -24,6 +25,15 @@ export default function NavbarComFavoritos() {
     } else {
       setMensagem('✅ Link enviado! Verifique seu email.');
     }
+  }
+
+  async function entrarComGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
   }
 
   return (
@@ -80,8 +90,18 @@ export default function NavbarComFavoritos() {
           >
             <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Entrar no Tom Certo</h2>
             <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-dim)' }}>
-              Digite seu email e enviaremos um link mágico para entrar — sem senha!
+              Entre com sua conta Google ou use seu email.
             </p>
+
+            <button
+              onClick={entrarComGoogle}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: '#fff', color: '#333', fontWeight: 700, fontSize: 14, border: '1px solid #ddd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 16 }}
+            >
+              <img src="https://www.google.com/favicon.ico" width={18} height={18} alt="Google" />
+              Entrar com Google
+            </button>
+
+            <div style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: 12, marginBottom: 16 }}>ou</div>
 
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input
