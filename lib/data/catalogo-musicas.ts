@@ -103,4 +103,23 @@ export const catalogoMusicas: MusicaCatalogo[] = [
   { titulo: "In the Grau", artista: "Cristiano Araújo", slug: "cristiano-araujo/in-the-grau" },
   { titulo: "Nosso Amor é Perfeito", artista: "Cristiano Araújo", slug: "cristiano-araujo/nosso-amor-e-perfeito" },
   { titulo: "Vai Lá em Casa Hoje", artista: "Fernando e Sorocaba", slug: "fernando-e-sorocaba/vai-la-em-casa-hoje" },
-  { titulo: "Louco por Você",
+  { titulo: "Louco por Você", artista: "Fernando e Sorocaba", slug: "fernando-e-sorocaba/louco-por-voce" },
+  { titulo: "Bão Demais", artista: "Bruno e Marrone", slug: "bruno-e-marrone/bao-demais" },
+  { titulo: "Dormi na Praça", artista: "Bruno e Marrone", slug: "bruno-e-marrone/dormi-na-praca" },
+  { titulo: "Chuva de Arroz", artista: "Bruno e Marrone", slug: "bruno-e-marrone/chuva-de-arroz" },
+  { titulo: "Recaída", artista: "Maiara e Maraisa", slug: "maiara-e-maraisa/recaida" },
+  { titulo: "Medo Bobo", artista: "Maiara e Maraisa", slug: "maiara-e-maraisa/medo-bobo" },
+  { titulo: "50 Reais", artista: "Naiara Azevedo", slug: "naiara-azevedo/50-reais" },
+  { titulo: "Me Liga", artista: "Ana Castela", slug: "ana-castela/me-liga" },
+  { titulo: "Pipoco", artista: "Ana Castela", slug: "ana-castela/pipoco" },
+  { titulo: "Estrada da Vida", artista: "Milionário e José Rico", slug: "milionario-e-jose-rico/estrada-da-vida" },
+]
+
+export function buscarNoCatalogo(query: string): MusicaCatalogo[] {
+  const q = query.toLowerCase().trim()
+  if (q.length < 2) return []
+  return catalogoMusicas.filter(m =>
+    m.titulo.toLowerCase().includes(q) ||
+    m.artista.toLowerCase().includes(q)
+  ).slice(0, 8)
+}
