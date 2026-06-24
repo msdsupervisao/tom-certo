@@ -85,7 +85,7 @@ export default function NavbarComFavoritos() {
           onClick={() => setModalLoginAberto(false)}
         >
           <div
-            style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 16, padding: 32, width: 340, maxWidth: '90vw' }}
+            style={{ background: '#1e1e2e', backdropFilter: 'none', border: '1px solid var(--border)', borderRadius: 16, padding: 32, width: 340, maxWidth: '90vw' }}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Entrar no Tom Certo</h2>
