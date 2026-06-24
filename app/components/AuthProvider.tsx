@@ -28,8 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCarregando(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      setCarregando(false);
+      if (event === 'SIGNED_IN') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -38,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function entrarComEmail(email: string) {
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: 'https://tom-certo-y5wn.vercel.app' },
     });
     return { error: error?.message ?? null };
   }
