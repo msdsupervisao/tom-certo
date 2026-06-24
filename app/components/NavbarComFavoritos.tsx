@@ -81,7 +81,7 @@ export default function NavbarComFavoritos() {
 
       {modalLoginAberto && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setModalLoginAberto(false)}
         >
           <div
