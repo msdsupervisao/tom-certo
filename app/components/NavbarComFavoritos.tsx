@@ -1,12 +1,30 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/app/components/ThemeToggle';
 import PainelFavoritos from '@/app/components/PainelFavoritos';
+import { useAuth } from '@/app/components/AuthProvider';
 
 export default function NavbarComFavoritos() {
   const [painelAberto, setPainelAberto] = useState(false);
+  const [modalLoginAberto, setModalLoginAberto] = useState(false);
+  const [email, setEmail] = useState('');
+  const [mensagem, setMensagem] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const { user, carregando, entrarComEmail, sair } = useAuth();
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    const { error } = await entrarComEmail(email);
+    setEnviando(false);
+    if (error) {
+      setMensagem('Erro: ' + error);
+    } else {
+      setMensagem('✅ Link enviado! Verifique seu email.');
+    }
+  }
 
   return (
     <>
@@ -16,6 +34,7 @@ export default function NavbarComFavoritos() {
             <span style={{ fontSize: 22 }}>🎵</span>
             <span><span className="text-[var(--color-primary)]">Tom</span> Certo</span>
           </Link>
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPainelAberto(true)}
@@ -23,11 +42,80 @@ export default function NavbarComFavoritos() {
             >
               ❤️ Favoritas
             </button>
+
+            {!carregando && (
+              user ? (
+                <button
+                  onClick={() => sair()}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: 'var(--text-dim)', fontSize: 13 }}
+                  title={user.email ?? ''}
+                >
+                  👤 Sair
+                </button>
+              ) : (
+                <button
+                  onClick={() => setModalLoginAberto(true)}
+                  style={{ background: 'var(--color-primary)', border: 'none', borderRadius: 10, padding: '6px 14px', cursor: 'pointer', color: '#fff', fontSize: 13, fontWeight: 600 }}
+                >
+                  Entrar
+                </button>
+              )
+            )}
+
             <ThemeToggle />
           </div>
         </div>
       </nav>
+
       <PainelFavoritos aberto={painelAberto} onFechar={() => setPainelAberto(false)} />
+
+      {modalLoginAberto && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setModalLoginAberto(false)}
+        >
+          <div
+            style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 16, padding: 32, width: 340, maxWidth: '90vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Entrar no Tom Certo</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-dim)' }}>
+              Digite seu email e enviaremos um link mágico para entrar — sem senha!
+            </p>
+
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14, outline: 'none' }}
+              />
+              <button
+                type="submit"
+                disabled={enviando}
+                style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--color-primary)', color: '#fff', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', opacity: enviando ? 0.7 : 1 }}
+              >
+                {enviando ? 'Enviando...' : 'Enviar link de acesso'}
+              </button>
+            </form>
+
+            {mensagem && (
+              <p style={{ marginTop: 16, fontSize: 13, color: mensagem.startsWith('✅') ? '#22c55e' : '#ef4444' }}>
+                {mensagem}
+              </p>
+            )}
+
+            <button
+              onClick={() => setModalLoginAberto(false)}
+              style={{ marginTop: 16, background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,10 +1,11 @@
-// app/components/PainelFavoritos.tsx
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
-import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
+import { salvarENotificar } from '@/lib/storage-events';
+import { useAuth } from '@/app/components/AuthProvider';
+import { obterFavoritosNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
 
 interface ItemFav {
   id: string;
@@ -20,69 +21,80 @@ interface PainelFavoritosProps {
 
 export default function PainelFavoritos({ aberto, onFechar }: PainelFavoritosProps) {
   const [favoritos, setFavoritos] = useState<ItemFav[]>([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!aberto) return;
-    try {
-      const raw = localStorage.getItem('tom-certo:favoritos');
-      if (!raw) { setFavoritos([]); return; }
-      const parsed = JSON.parse(raw);
-      const itens: ItemFav[] = parsed.map((x: any) => {
-        if (typeof x === 'string') {
-          const mock = buscarMusicaPorId(x);
-          return { id: x, titulo: mock?.titulo, artista: mock?.artista };
-        }
-        const mock = buscarMusicaPorId(x.id);
-        return {
-          id: x.id,
-          titulo: x.titulo || mock?.titulo || x.id.split('/')[1]?.replace(/-/g, ' '),
-          artista: x.artista || mock?.artista || x.id.split('/')[0]?.replace(/-/g, ' '),
-        };
-      });
-      setFavoritos(itens);
 
-      // Busca capas via iTunes para itens sem capa
-      itens.forEach((item, idx) => {
-        if (!item.titulo) return;
-        fetch(`/api/spotify?q=${encodeURIComponent((item.titulo || '') + ' ' + (item.artista || ''))}`)
-          .then(r => r.json())
-          .then(d => {
-            if (d.imagem) {
-              setFavoritos(prev => prev.map((f, i) => i === idx ? { ...f, capa: d.imagem } : f));
-            }
-          }).catch(() => {});
+    if (user) {
+      // Logado: busca da nuvem
+      obterFavoritosNuvem().then(itens => {
+        setFavoritos(itens);
+        itens.forEach((item, idx) => {
+          if (!item.titulo) return;
+          fetch(`/api/spotify?q=${encodeURIComponent((item.titulo || '') + ' ' + (item.artista || ''))}`)
+            .then(r => r.json())
+            .then(d => {
+              if (d.imagem) {
+                setFavoritos(prev => prev.map((f, i) => i === idx ? { ...f, capa: d.imagem } : f));
+              }
+            }).catch(() => {});
+        });
       });
-    } catch { setFavoritos([]); }
-  }, [aberto]);
+    } else {
+      // Não logado: busca do localStorage
+      try {
+        const raw = localStorage.getItem('tom-certo:favoritos');
+        if (!raw) { setFavoritos([]); return; }
+        const parsed = JSON.parse(raw);
+        const itens: ItemFav[] = parsed.map((x: any) => {
+          if (typeof x === 'string') {
+            const mock = buscarMusicaPorId(x);
+            return { id: x, titulo: mock?.titulo, artista: mock?.artista };
+          }
+          const mock = buscarMusicaPorId(x.id);
+          return {
+            id: x.id,
+            titulo: x.titulo || mock?.titulo || x.id.split('/')[1]?.replace(/-/g, ' '),
+            artista: x.artista || mock?.artista || x.id.split('/')[0]?.replace(/-/g, ' '),
+          };
+        });
+        setFavoritos(itens);
+        itens.forEach((item, idx) => {
+          if (!item.titulo) return;
+          fetch(`/api/spotify?q=${encodeURIComponent((item.titulo || '') + ' ' + (item.artista || ''))}`)
+            .then(r => r.json())
+            .then(d => {
+              if (d.imagem) {
+                setFavoritos(prev => prev.map((f, i) => i === idx ? { ...f, capa: d.imagem } : f));
+              }
+            }).catch(() => {});
+        });
+      } catch { setFavoritos([]); }
+    }
+  }, [aberto, user]);
 
-  function remover(id: string) {
-    try {
-      const raw = localStorage.getItem('tom-certo:favoritos');
-      const parsed = raw ? JSON.parse(raw) : [];
-      const nova = parsed.filter((x: any) => (typeof x === 'string' ? x : x.id) !== id);
-      salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
+  async function remover(id: string) {
+    if (user) {
+      await removerFavoritoNuvem(id);
       setFavoritos(prev => prev.filter(f => f.id !== id));
-      // Avisa a home para recarregar os favoritos
-    } catch {}
-  }
-
-  function getLinkHref(id: string) {
-    // Mock: id numérico. Cifra Club: slug com /
-    if (id.includes('/')) return `/musica/${id}`;
-    return `/musica/${id}`;
+    } else {
+      try {
+        const raw = localStorage.getItem('tom-certo:favoritos');
+        const parsed = raw ? JSON.parse(raw) : [];
+        const nova = parsed.filter((x: any) => (typeof x === 'string' ? x : x.id) !== id);
+        salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
+        setFavoritos(prev => prev.filter(f => f.id !== id));
+      } catch {}
+    }
   }
 
   return (
     <>
-      {/* Overlay */}
       {aberto && (
-        <div
-          onClick={onFechar}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100 }}
-        />
+        <div onClick={onFechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100 }} />
       )}
 
-      {/* Painel lateral */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 360,
         background: 'var(--panel)', borderLeft: '1px solid var(--border)',
@@ -90,7 +102,6 @@ export default function PainelFavoritos({ aberto, onFechar }: PainelFavoritosPro
         transition: 'transform 0.3s ease', display: 'flex', flexDirection: 'column',
         boxShadow: aberto ? '-8px 0 32px rgba(0,0,0,0.3)' : 'none',
       }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>❤️</span>
@@ -101,15 +112,15 @@ export default function PainelFavoritos({ aberto, onFechar }: PainelFavoritosPro
               </span>
             )}
           </div>
-          <button
-            onClick={onFechar}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-dim)', padding: 4 }}
-          >
-            ✕
-          </button>
+          <button onClick={onFechar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-dim)', padding: 4 }}>✕</button>
         </div>
 
-        {/* Lista */}
+        {!user && (
+          <div style={{ padding: '12px 16px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
+            Entre para sincronizar seus favoritos em qualquer dispositivo!
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {favoritos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -135,17 +146,10 @@ export default function PainelFavoritos({ aberto, onFechar }: PainelFavoritosPro
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <Link
-                      href={getLinkHref(item.id)}
-                      onClick={onFechar}
-                      style={{ background: 'var(--violeta)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}
-                    >
+                    <Link href={`/musica/${item.id}`} onClick={onFechar} style={{ background: 'var(--violeta)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
                       Ver
                     </Link>
-                    <button
-                      onClick={() => remover(item.id)}
-                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', fontSize: 14, cursor: 'pointer', color: 'var(--text-dim)' }}
-                    >
+                    <button onClick={() => remover(item.id)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', fontSize: 14, cursor: 'pointer', color: 'var(--text-dim)' }}>
                       🗑️
                     </button>
                   </div>
