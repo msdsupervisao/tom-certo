@@ -31,7 +31,7 @@ export default function NavbarComFavoritos() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://tom-certo-y5wn.vercel.app',
+        redirectTo: 'https://tom-certo-y5wn.vercel.app/auth/callback',
       },
     });
   }
