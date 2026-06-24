@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
@@ -9,6 +9,137 @@ import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import Afinador from '@/app/components/Afinador';
 
 const CACHE_CAPAS: Record<string, string> = {};
+
+interface ResultadoBusca {
+  titulo: string;
+  artista: string;
+  url: string;
+  slug: string;
+}
+
+function BuscaMusica() {
+  const [query, setQuery] = useState('');
+  const [resultados, setResultados] = useState<ResultadoBusca[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const [erro, setErro] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
+
+  const buscar = useCallback(async (q: string) => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const res = await fetch(`/api/buscar?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setResultados(data.resultados || []);
+      setAberto(true);
+    } catch {
+      setErro('Erro ao buscar. Tente novamente.');
+      setResultados([]);
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (query.length < 2) { setResultados([]); setAberto(false); return; }
+    timerRef.current = setTimeout(() => buscar(query), 400);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [query, buscar]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function handleSelect(r: ResultadoBusca) {
+    setAberto(false);
+    setQuery('');
+    try {
+      const raw = localStorage.getItem('tom-certo:favoritos');
+      const historico = JSON.parse(localStorage.getItem('historico_musicas') || '[]');
+      const nova = { id: r.slug, titulo: r.titulo, artista: r.artista, url: r.url, acessadaEm: new Date().toISOString() };
+      const atualizado = [nova, ...historico.filter((m: { id: string }) => m.id !== nova.id)].slice(0, 20);
+      localStorage.setItem('historico_musicas', JSON.stringify(atualizado));
+    } catch {}
+    router.push(`/musica/${r.slug}`);
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: 'var(--panel)', border: '2px solid var(--violeta)',
+        borderRadius: 14, padding: '6px 6px 6px 16px',
+        boxShadow: '0 0 20px rgba(108,92,231,0.15)',
+      }}>
+        <span style={{ fontSize: 16, color: 'var(--violeta)' }}>🔍</span>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Escape' && setAberto(false)}
+          onFocus={() => resultados.length > 0 && setAberto(true)}
+          placeholder="Buscar música ou artista..."
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 15, color: 'var(--text)', padding: '8px 0' }}
+        />
+        {carregando && (
+          <div style={{ width: 18, height: 18, border: '2px solid rgba(108,92,231,0.3)', borderTopColor: 'var(--violeta)', borderRadius: '50%', animation: 'tc-spin 0.7s linear infinite', flexShrink: 0 }} />
+        )}
+        {query && !carregando && (
+          <button onClick={() => { setQuery(''); setResultados([]); setAberto(false); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-dim)', padding: '0 8px', flexShrink: 0 }}>
+            ✕
+          </button>
+        )}
+      </div>
+
+      {aberto && (resultados.length > 0 || erro) && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+          background: 'var(--panel)', border: '1px solid var(--border)',
+          borderRadius: 14, overflow: 'hidden', zIndex: 1000,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+        }}>
+          {erro && <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-dim)' }}>{erro}</div>}
+          {resultados.map((r, i) => (
+            <button key={i} onClick={() => handleSelect(r)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: '12px 16px', background: 'none', border: 'none',
+                borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(108,92,231,0.1)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎵</div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.titulo}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.artista}</div>
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--violeta)', flexShrink: 0 }}>→</span>
+            </button>
+          ))}
+          {resultados.length === 0 && !erro && (
+            <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-dim)' }}>
+              Nenhuma música encontrada para "{query}"
+            </div>
+          )}
+        </div>
+      )}
+      <style>{`@keyframes tc-spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -206,17 +337,23 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CAMPO URL */}
+        {/* BUSCA + URL */}
         <div style={{ marginBottom: 32 }}>
+          <BuscaMusica />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>ou cole o link direto</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--panel)', border: '2px solid var(--border)', borderRadius: 14, padding: '6px 6px 6px 16px' }}>
-            <span style={{ fontSize: 16, color: 'var(--text-dim)' }}>🔍</span>
+            <span style={{ fontSize: 16, color: 'var(--text-dim)' }}>🔗</span>
             <input
               id="campo-url"
               type="text"
               value={url}
               onChange={e => { setUrl(e.target.value); setErro(''); }}
               onKeyDown={e => e.key === 'Enter' && abrirUrl()}
-              placeholder="Cole o link do Cifra Club..."
+              placeholder="cifraclub.com.br/legiao-urbana/tempo-perdido/"
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 15, color: 'var(--text)', padding: '8px 0' }}
             />
             <button onClick={abrirUrl}
@@ -224,10 +361,7 @@ export default function Home() {
               Abrir
             </button>
           </div>
-          {erro && <p style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 6 }}>{erro}</p>}
-          <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
-            Ex: <span style={{ fontFamily: 'monospace', color: 'var(--violeta)' }}>cifraclub.com.br/legiao-urbana/tempo-perdido/</span>
-          </p>
+          {erro && <p style={{ color: 'var(--color-error, #ff5d8f)', fontSize: 12, marginTop: 6 }}>{erro}</p>}
         </div>
 
         {/* FAVORITOS */}
@@ -259,7 +393,7 @@ export default function Home() {
               <p style={{ fontSize: 48, marginBottom: 12 }}>🎵</p>
               <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Nenhuma música acessada ainda</p>
               <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6 }}>
-                Cole o link de uma música do Cifra Club no campo acima<br />e ela vai aparecer aqui na próxima vez.
+                Busque uma música acima ou cole o link do Cifra Club.
               </p>
             </div>
           )}
@@ -339,13 +473,9 @@ function FavoritosSection({ favoritosCompletos, capas, toggleFav }: {
                 <div
                   key={item.id}
                   style={{
-                    position: 'relative',
-                    width: 140,
-                    flexShrink: 0,
-                    background: 'var(--panel)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    overflow: 'hidden',
+                    position: 'relative', width: 140, flexShrink: 0,
+                    background: 'var(--panel)', border: '1px solid var(--border)',
+                    borderRadius: 12, overflow: 'hidden',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     cursor: 'pointer',
                   }}
@@ -398,7 +528,7 @@ function VisitadaCard({ item, capa, isFav, onFav }: {
   isFav: boolean;
   onFav: () => void;
 }) {
-  const href = item.id.includes('/') ? `/musica/${item.id}` : `/musica/${item.id}`;
+  const href = `/musica/${item.id}`;
   return (
     <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
       <div style={{ height: 110, background: capa ? `url(${capa}) center/cover` : 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', position: 'relative' }}>

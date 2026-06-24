@@ -12,12 +12,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" data-theme="dark">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('tom-certo-tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('tom-certo:tema');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
       </head>
-      <body className="min-h-screen bg-bg text-text antialiased">
+      <body>
         <AuthProvider>
           <NavbarComFavoritos />
-          <div className="mx-auto max-w-md px-5 py-8 md:max-w-3xl md:px-8 lg:max-w-5xl">
+          <div className="mx-auto max-w-md px-5 py-8 md:max-w-3xl md:px-8">
             {children}
           </div>
         </AuthProvider>
