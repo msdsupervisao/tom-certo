@@ -9,6 +9,8 @@ import CifraViewer from '@/app/components/CifraViewer';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import ControleFonte from '@/app/components/ControleFonte';
+import { useAuth } from '@/app/components/AuthProvider';
+import { adicionarFavoritoNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
 
 interface CifraResult {
   titulo: string;
@@ -21,6 +23,7 @@ interface CifraResult {
 export default function MusicaSlugPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const slugParts = Array.isArray(params.slug) ? params.slug : [params.slug as string];
   const slug = slugParts.join('/');
 
@@ -29,7 +32,7 @@ export default function MusicaSlugPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [tomDetectado, setTomDetectado] = useState<NomeNota | null>(null);
   const [estabilidade, setEstabilidade] = useState<number | null>(null);
-  const [ajusteManual, setAjusteManual] = useState(0); // semitons extras além do detectado
+  const [ajusteManual, setAjusteManual] = useState(0);
   const [afinadorAberto, setAfinadorAberto] = useState(false);
   const [tamanhoFonte, setTamanhoFonte] = useState(15);
   const [favorito, setFavorito] = useState(false);
@@ -53,17 +56,37 @@ export default function MusicaSlugPage() {
       .finally(() => setCarregando(false));
   }, [slug]);
 
-  function toggleFavorito() {
-    try {
-      const raw = localStorage.getItem('tom-certo:favoritos');
-      const atual = raw ? JSON.parse(raw) : [];
-      const existe = atual.some((x: any) => (typeof x === 'string' ? x : x.id) === slug);
-      const nova = existe
-        ? atual.filter((x: any) => (typeof x === 'string' ? x : x.id) !== slug)
-        : [...atual, { id: slug, titulo: cifraData?.titulo, artista: cifraData?.artista }];
-      salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
-      setFavorito(!existe);
-    } catch {}
+  useEffect(() => {
+    if (!user || !slug) return;
+    import('@/lib/favoritos-nuvem').then(({ obterFavoritosNuvem }) => {
+      obterFavoritosNuvem().then(lista => {
+        setFavorito(lista.some((f: any) => f.id === slug));
+      });
+    });
+  }, [user, slug]);
+
+  async function toggleFavorito() {
+    if (!cifraData) return;
+    if (user) {
+      if (favorito) {
+        await removerFavoritoNuvem(slug);
+        setFavorito(false);
+      } else {
+        await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista);
+        setFavorito(true);
+      }
+    } else {
+      try {
+        const raw = localStorage.getItem('tom-certo:favoritos');
+        const atual = raw ? JSON.parse(raw) : [];
+        const existe = atual.some((x: any) => (typeof x === 'string' ? x : x.id) === slug);
+        const nova = existe
+          ? atual.filter((x: any) => (typeof x === 'string' ? x : x.id) !== slug)
+          : [...atual, { id: slug, titulo: cifraData?.titulo, artista: cifraData?.artista }];
+        salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
+        setFavorito(!existe);
+      } catch {}
+    }
   }
 
   if (carregando) {
@@ -95,7 +118,6 @@ export default function MusicaSlugPage() {
     ? transporCifraCompleta(cifraData.cifra, semitons)
     : cifraData.cifra;
 
-  // Calcula o tom atual para exibir com cor (igual ao Cifra Club)
   const indiceOriginal = NOMES_NOTAS.indexOf(cifraData.tomOriginal as NomeNota);
   const tomAtual = indiceOriginal >= 0
     ? NOMES_NOTAS[((indiceOriginal + semitons) % 12 + 12) % 12]
@@ -111,7 +133,6 @@ export default function MusicaSlugPage() {
 
   return (
     <main>
-      {/* Barra de controles */}
       <div className="no-print mb-4 flex items-center justify-between">
         <button onClick={() => router.back()} className="text-sm text-text-dim">← Voltar</button>
         <div className="flex items-center gap-2">
@@ -134,13 +155,11 @@ export default function MusicaSlugPage() {
         </div>
       </div>
 
-      {/* Título */}
       <div className="no-print mb-4">
         <h1 className="font-display text-2xl font-bold">{cifraData.titulo}</h1>
         <p className="text-sm text-text-dim">{cifraData.artista}</p>
       </div>
 
-      {/* Tom colorido — igual ao Cifra Club */}
       <div className="no-print mb-3">
         <span className="text-sm text-text-dim">Tom: </span>
         <span className="text-sm font-bold text-violeta">{tomAtual}</span>
@@ -149,9 +168,7 @@ export default function MusicaSlugPage() {
         )}
       </div>
 
-      {/* Controles de tom e cantar */}
       <div className="no-print mb-4 flex flex-wrap items-center gap-3">
-        {/* Controle manual de tom */}
         <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-1">
           <button onClick={() => setAjusteManual(a => a - 1)}
             className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-text-dim hover:bg-bg-soft">−</button>
@@ -182,14 +199,12 @@ export default function MusicaSlugPage() {
         )}
       </div>
 
-      {/* Gravador — aparece inline acima da cifra quando ativo */}
       {mostrarGravador && (
         <div className="no-print mb-4">
           <GravadorDeTom onTomDetectado={handleTomDetectado} />
         </div>
       )}
 
-      {/* Cifra — ocupa toda a largura */}
       <div className="hidden print:block print:mb-4">
         <h1 className="text-xl font-bold">{cifraData.titulo}</h1>
         <p className="text-sm">{cifraData.artista} — Tom: {tomDetectado || cifraData.tomOriginal}</p>
