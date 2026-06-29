@@ -3,24 +3,23 @@
 
 import { useEffect, useState } from 'react';
 
+const CHAVE_TEMA = 'tom-certo:tema';
+
 export default function ThemeToggle() {
   const [tema, setTema] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    const salvo = window.localStorage.getItem('tom-certo-tema');
-    if (salvo === 'light' || salvo === 'dark') {
-      setTema(salvo);
-      document.documentElement.setAttribute('data-theme', salvo);
-    } else {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    const salvo = window.localStorage.getItem(CHAVE_TEMA);
+    const proximo = salvo === 'light' || salvo === 'dark' ? salvo : 'dark';
+    setTema(proximo);
+    document.documentElement.setAttribute('data-theme', proximo);
   }, []);
 
   function alternar() {
     const novoTema = tema === 'dark' ? 'light' : 'dark';
     setTema(novoTema);
     document.documentElement.setAttribute('data-theme', novoTema);
-    window.localStorage.setItem('tom-certo-tema', novoTema);
+    window.localStorage.setItem(CHAVE_TEMA, novoTema);
   }
 
   return (

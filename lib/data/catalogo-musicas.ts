@@ -22,7 +22,6 @@ export const catalogoMusicas: MusicaCatalogo[] = [
   { titulo: "Flores", artista: "Titãs", slug: "titas/flores" },
   { titulo: "Será Que É Isso Que Eu Preciso", artista: "Titãs", slug: "titas/sera-que-e-isso-que-eu-preciso" },
   { titulo: "Geração Coca-Cola", artista: "Legião Urbana", slug: "legiao-urbana/geracao-coca-cola" },
-  { titulo: "Pais e Filhos", artista: "Legião Urbana", slug: "legiao-urbana/pais-e-filhos" },
   { titulo: "Admirável Gado Novo", artista: "Zé Ramalho", slug: "ze-ramalho/admiravel-gado-novo" },
   { titulo: "Chão de Giz", artista: "Zé Ramalho", slug: "ze-ramalho/chao-de-giz" },
   { titulo: "Todo Camburão", artista: "Rappa", slug: "o-rappa/todo-camburao-tem-um-pouco-de-navio-negreiro" },

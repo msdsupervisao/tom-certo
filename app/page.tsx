@@ -10,6 +10,7 @@ import {
 } from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import Afinador from '@/app/components/Afinador';
+import BottomNav from '@/app/components/BottomNav';
 import { Mic, SlidersHorizontal, Search, Music, ChevronRight, Heart } from 'lucide-react';
 
 const CACHE_CAPAS: Record<string, string> = {};
@@ -136,7 +137,7 @@ export default function Home() {
           </div>
 
           {/* Detectar tom */}
-          <div onClick={() => router.push('/musica')} style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => router.push('/buscar')} style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <Mic size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)' }}>Detectar tom</p>
             <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 3 }}>Via microfone</p>
@@ -241,21 +242,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 860, display: 'flex', background: 'rgba(20,20,20,0.97)', borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingBottom: 'env(safe-area-inset-bottom, 18px)', paddingTop: 10, zIndex: 100 }}>
-        {[
-          { href: '/', icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>, label: 'Início', active: true },
-          { href: '/buscar', icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>, label: 'Buscar', active: false },
-          { href: '/favoritas', icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>, label: 'Favoritas', active: false },
-          { href: '/perfil', icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, label: 'Perfil', active: false },
-        ].map(tab => (
-          <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab.active ? 'var(--tc-gold)' : 'var(--tc-txt3)', textDecoration: 'none' }}>
-            {tab.icon}
-            <span style={{ fontSize: 10, fontWeight: 500 }}>{tab.label}</span>
-          </Link>
-        ))}
-      </nav>
-
+      <BottomNav />
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
     </div>
   );
@@ -263,25 +250,23 @@ export default function Home() {
 
 function StripLabel({ label }: { label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 10px' }}>
-      <div style={{ flex: 1, height: '0.5px', background: 'rgba(255,255,255,0.07)' }} />
-      <span style={{ fontSize: 10, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>
-      <div style={{ flex: 1, height: '0.5px', background: 'rgba(255,255,255,0.07)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px' }}>
+      {[...Array(4)].map((_, i) => <div key={i} style={{ flex: 1, height: '0.5px', background: 'var(--tc-border)' }} />)}
+      <span style={{ fontSize: 10, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', padding: '0 8px' }}>{label}</span>
+      {[...Array(4)].map((_, i) => <div key={i} style={{ flex: 1, height: '0.5px', background: 'var(--tc-border)' }} />)}
     </div>
   );
 }
 
-function MusicaRow({ href, titulo, artista, rightSlot }: {
-  href: string; titulo: string; artista: string; rightSlot?: React.ReactNode;
-}) {
+function MusicaRow({ href, titulo, artista, rightSlot }: { href: string; titulo: string; artista: string; rightSlot?: React.ReactNode }) {
   return (
-    <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, textDecoration: 'none' }}>
+    <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, textDecoration: 'none' }}>
       <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--tc-gold)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titulo}</p>
         <p style={{ fontSize: 11, color: 'var(--tc-txt2)' }}>{artista}</p>
       </div>
-      {rightSlot || <ChevronRight size={14} style={{ color: 'var(--tc-txt3)', flexShrink: 0 }} />}
+      {rightSlot}
     </Link>
   );
 }

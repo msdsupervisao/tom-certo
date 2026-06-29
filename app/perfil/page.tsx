@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { obterTomMaisFrequente, obterTotalAnalises, obterMusicasVisitadas } from '@/lib/historico-local';
-import { SlidersHorizontal, Moon, HelpCircle, LogOut, ChevronRight, Music } from 'lucide-react';
+import { SlidersHorizontal, HelpCircle, LogOut, ChevronRight, Music } from 'lucide-react';
+import BottomNav from '@/app/components/BottomNav';
 
 export default function PerfilPage() {
-  const { user, supabase } = useAuth();
+  const { user, sair } = useAuth();
   const router = useRouter();
   const [saindo, setSaindo] = useState(false);
 
@@ -20,9 +20,9 @@ export default function PerfilPage() {
   const email = user?.email || 'Não logado';
   const iniciais = nome.slice(0, 1).toUpperCase();
 
-  async function sair() {
+  async function handleSair() {
     setSaindo(true);
-    await supabase.auth.signOut();
+    await sair();
     router.push('/');
   }
 
@@ -54,29 +54,13 @@ export default function PerfilPage() {
         <Divider label="Conta" />
         <MenuItem icon={<HelpCircle size={18} />} label="Ajuda" onClick={() => {}} />
         {user ? (
-          <MenuItem icon={<LogOut size={18} />} label={saindo ? 'Saindo...' : 'Sair da conta'} onClick={sair} danger />
+          <MenuItem icon={<LogOut size={18} />} label={saindo ? 'Saindo...' : 'Sair da conta'} onClick={handleSair} danger />
         ) : (
           <MenuItem icon={<LogOut size={18} />} label="Entrar" onClick={() => router.push('/')} />
         )}
       </div>
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 860, display: 'flex', background: 'rgba(20,20,20,0.97)', borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingBottom: 'env(safe-area-inset-bottom, 18px)', paddingTop: 10, zIndex: 100 }}>
-        {[
-          { href: '/',          icon: 'home',   label: 'Início',    active: false },
-          { href: '/buscar',    icon: 'search', label: 'Buscar',    active: false },
-          { href: '/favoritas', icon: 'heart',  label: 'Favoritas', active: false },
-          { href: '/perfil',    icon: 'user',   label: 'Perfil',    active: true  },
-        ].map(tab => (
-          <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab.active ? 'var(--tc-gold)' : 'var(--tc-txt3)', textDecoration: 'none' }}>
-            {tab.icon === 'home'   && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>}
-            {tab.icon === 'search' && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
-            {tab.icon === 'heart'  && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>}
-            {tab.icon === 'user'   && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-            <span style={{ fontSize: 10, fontWeight: 500 }}>{tab.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   );
 }

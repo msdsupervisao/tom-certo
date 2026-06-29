@@ -3,16 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { calcularIntervaloSemitons, transporCifraCompleta, NomeNota, NOMES_NOTAS } from '@/lib/music-theory';
-import { registrarDeteccao, ehFavorito, registrarVisita } from '@/lib/historico-local';
+import { registrarDeteccao, ehFavorito, registrarVisita, alternarFavorito } from '@/lib/historico-local';
 import { salvarENotificar } from '@/lib/storage-events';
+import { buscarMusicaPorId } from '@/lib/data/songs-mock';
 import CifraViewer from '@/app/components/CifraViewer';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import { useAuth } from '@/app/components/AuthProvider';
-import { adicionarFavoritoNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
-import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic, ZoomIn, ZoomOut } from 'lucide-react';
+import { adicionarFavoritoNuvem, removerFavoritoNuvem, ehFavoritoNuvem } from '@/lib/favoritos-nuvem';
+import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
 
 interface CifraResult {
+  id: string;
   titulo: string;
   artista: string;
   tomOriginal: string;
@@ -20,35 +22,46 @@ interface CifraResult {
   slug: string;
 }
 
-export default function MusicaSlugPage() {
-  const params  = useParams();
-  const router  = useRouter();
+export default function MusicaPage() {
+  const params = useParams();
+  const router = useRouter();
   const { user } = useAuth();
 
   const slugParts = Array.isArray(params.slug) ? params.slug : [params.slug as string];
-  const slug      = slugParts.join('/');
+  const slug = slugParts.join('/');
 
-  const [cifraData,       setCifraData]       = useState<CifraResult | null>(null);
-  const [carregando,      setCarregando]      = useState(true);
-  const [erro,            setErro]            = useState<string | null>(null);
-  const [tomDetectado,    setTomDetectado]    = useState<NomeNota | null>(null);
-  const [estabilidade,    setEstabilidade]    = useState<number | null>(null);
-  const [ajusteManual,    setAjusteManual]    = useState(0);
-  const [afinadorAberto,  setAfinadorAberto]  = useState(false);
-  const [tamanhoFonte,    setTamanhoFonte]    = useState(15);
-  const [favorito,        setFavorito]        = useState(false);
+  const [dados, setDados] = useState<CifraResult | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [tomDetectado, setTomDetectado] = useState<NomeNota | null>(null);
+  const [estabilidade, setEstabilidade] = useState<number | null>(null);
+  const [ajusteManual, setAjusteManual] = useState(0);
+  const [afinadorAberto, setAfinadorAberto] = useState(false);
+  const [tamanhoFonte, setTamanhoFonte] = useState(15);
+  const [favorito, setFavorito] = useState(false);
   const [mostrarGravador, setMostrarGravador] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
     setCarregando(true);
     setErro(null);
+
+    const mock = buscarMusicaPorId(slug);
+    if (mock) {
+      setDados({ id: mock.id, titulo: mock.titulo, artista: mock.artista, tomOriginal: mock.tomOriginal, cifra: mock.cifra, slug: mock.id });
+      setFavorito(ehFavorito(slug));
+      registrarVisita(slug, mock.titulo, mock.artista);
+      setCarregando(false);
+      return;
+    }
+
     fetch(`/api/cifra?slug=${encodeURIComponent(slug)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.erro) setErro(data.erro);
-        else {
-          setCifraData(data);
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.erro) {
+          setErro(data.erro);
+        } else {
+          setDados({ id: slug, ...data });
           setFavorito(ehFavorito(slug));
           registrarVisita(slug, data.titulo, data.artista);
         }
@@ -59,29 +72,21 @@ export default function MusicaSlugPage() {
 
   useEffect(() => {
     if (!user || !slug) return;
-    import('@/lib/favoritos-nuvem').then(({ obterFavoritosNuvem }) => {
-      obterFavoritosNuvem().then((lista: any[]) => {
-        setFavorito(lista.some((f: any) => f.id === slug));
-      });
-    });
+    ehFavoritoNuvem(slug).then(setFavorito);
   }, [user, slug]);
 
   async function toggleFavorito() {
-    if (!cifraData) return;
+    if (!dados) return;
     if (user) {
-      if (favorito) { await removerFavoritoNuvem(slug); setFavorito(false); }
-      else { await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista); setFavorito(true); }
+      if (favorito) {
+        await removerFavoritoNuvem(slug);
+      } else {
+        await adicionarFavoritoNuvem(slug, dados.titulo, dados.artista);
+      }
+      setFavorito(!favorito);
     } else {
-      try {
-        const raw = localStorage.getItem('tom-certo:favoritos');
-        const atual = raw ? JSON.parse(raw) : [];
-        const existe = atual.some((x: any) => (typeof x === 'string' ? x : x.id) === slug);
-        const nova = existe
-          ? atual.filter((x: any) => (typeof x === 'string' ? x : x.id) !== slug)
-          : [...atual, { id: slug, titulo: cifraData?.titulo, artista: cifraData?.artista }];
-        salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
-        setFavorito(!existe);
-      } catch {}
+      const novaLista = alternarFavorito(slug, dados.titulo, dados.artista);
+      setFavorito(novaLista.some((item) => item.id === slug));
     }
   }
 
@@ -109,7 +114,7 @@ export default function MusicaSlugPage() {
     );
   }
 
-  if (erro || !cifraData) {
+  if (erro || !dados) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)', padding: '16px' }}>
         <button onClick={voltar} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
@@ -123,23 +128,21 @@ export default function MusicaSlugPage() {
   }
 
   const semitons = tomDetectado
-    ? calcularIntervaloSemitons(cifraData.tomOriginal as NomeNota, tomDetectado) + ajusteManual
+    ? calcularIntervaloSemitons(dados.tomOriginal as NomeNota, tomDetectado) + ajusteManual
     : ajusteManual;
 
   const cifraExibida = semitons !== 0
-    ? transporCifraCompleta(cifraData.cifra, semitons)
-    : cifraData.cifra;
+    ? transporCifraCompleta(dados.cifra, semitons)
+    : dados.cifra;
 
-  const indiceOriginal = NOMES_NOTAS.indexOf(cifraData.tomOriginal as NomeNota);
+  const indiceOriginal = NOMES_NOTAS.indexOf(dados.tomOriginal as NomeNota);
   const tomAtual = indiceOriginal >= 0
     ? NOMES_NOTAS[((indiceOriginal + semitons) % 12 + 12) % 12]
-    : cifraData.tomOriginal;
+    : dados.tomOriginal;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
-
-        {/* Header */}
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', flexShrink: 0 }}>
           <button
             onClick={voltar}
@@ -149,8 +152,8 @@ export default function MusicaSlugPage() {
             <ArrowLeft size={16} />
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cifraData.titulo}</p>
-            <p style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{cifraData.artista}</p>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dados.titulo}</p>
+            <p style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{dados.artista}</p>
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <IcoBtn onClick={toggleFavorito} active={favorito} aria-label="Favoritar">
@@ -165,7 +168,6 @@ export default function MusicaSlugPage() {
           </div>
         </div>
 
-        {/* Barra de tom + transposição + fonte */}
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--tc-s1)', borderTop: '0.5px solid var(--tc-border)', borderBottom: '0.5px solid var(--tc-border)', padding: '9px 16px', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Tom</span>
@@ -176,10 +178,9 @@ export default function MusicaSlugPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Controle de fonte integrado */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 8px' }}>
               <button
-                onClick={() => setTamanhoFonte(t => Math.max(12, t - 1))}
+                onClick={() => setTamanhoFonte((t) => Math.max(12, t - 1))}
                 disabled={tamanhoFonte <= 12}
                 style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
@@ -187,7 +188,7 @@ export default function MusicaSlugPage() {
               </button>
               <span style={{ fontSize: 11, color: 'var(--tc-txt3)', minWidth: 20, textAlign: 'center' }}>{tamanhoFonte}</span>
               <button
-                onClick={() => setTamanhoFonte(t => Math.min(24, t + 1))}
+                onClick={() => setTamanhoFonte((t) => Math.min(24, t + 1))}
                 disabled={tamanhoFonte >= 24}
                 style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
@@ -195,11 +196,10 @@ export default function MusicaSlugPage() {
               </button>
             </div>
 
-            {/* Transposição */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 10px' }}>
-              <TransBtn onClick={() => setAjusteManual(a => a - 1)}>−</TransBtn>
+              <TransBtn onClick={() => setAjusteManual((a) => a - 1)}>−</TransBtn>
               <span style={{ fontSize: 11, color: 'var(--tc-txt2)', minWidth: 32, textAlign: 'center' }}>½ Tom</span>
-              <TransBtn onClick={() => setAjusteManual(a => a + 1)}>+</TransBtn>
+              <TransBtn onClick={() => setAjusteManual((a) => a + 1)}>+</TransBtn>
               {semitons !== 0 && (
                 <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-txt3)' }}>✕</button>
@@ -228,24 +228,20 @@ export default function MusicaSlugPage() {
           </div>
         </div>
 
-        {/* Gravador */}
         {mostrarGravador && (
           <div className="no-print" style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
             <GravadorDeTom onTomDetectado={handleTomDetectado} />
           </div>
         )}
 
-        {/* Título para impressão */}
         <div className="hidden print:block" style={{ padding: '16px' }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>{cifraData.titulo}</h1>
-          <p style={{ fontSize: 13 }}>{cifraData.artista} — Tom: {tomAtual}</p>
+          <h1 style={{ fontSize: 20, fontWeight: 700 }}>{dados.titulo}</h1>
+          <p style={{ fontSize: 13 }}>{dados.artista} — Tom: {tomAtual}</p>
         </div>
 
-        {/* Cifra */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: 80 }}>
           <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
         </div>
-
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

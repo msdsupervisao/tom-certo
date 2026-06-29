@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
-import { obterMusicasVisitadas } from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import { obterFavoritosNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
 import { useAuth } from '@/app/components/AuthProvider';
 import { Heart, Music, ChevronRight, Trash2 } from 'lucide-react';
+import BottomNav from '@/app/components/BottomNav';
 
 interface FavItem {
   id: string;
@@ -135,23 +135,7 @@ export default function FavoritasPage() {
         )}
       </div>
 
-      {/* Bottom Nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 860, display: 'flex', background: 'rgba(20,20,20,0.97)', borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingBottom: 'env(safe-area-inset-bottom, 18px)', paddingTop: 10, zIndex: 100 }}>
-        {[
-          { href: '/', icon: 'home', label: 'Início', active: false },
-          { href: '/buscar', icon: 'search', label: 'Buscar', active: false },
-          { href: '/favoritas', icon: 'heart', label: 'Favoritas', active: true },
-          { href: '/perfil', icon: 'user', label: 'Perfil', active: false },
-        ].map(tab => (
-          <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab.active ? 'var(--tc-gold)' : 'var(--tc-txt3)', textDecoration: 'none' }}>
-            {tab.icon === 'home' && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>}
-            {tab.icon === 'search' && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
-            {tab.icon === 'heart' && <svg width="22" height="22" fill={tab.active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>}
-            {tab.icon === 'user' && <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-            <span style={{ fontSize: 10, fontWeight: 500 }}>{tab.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <BottomNav />
     </div>
   );
 }
