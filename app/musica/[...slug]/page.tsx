@@ -8,10 +8,9 @@ import { salvarENotificar } from '@/lib/storage-events';
 import CifraViewer from '@/app/components/CifraViewer';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
-import ControleFonte from '@/app/components/ControleFonte';
 import { useAuth } from '@/app/components/AuthProvider';
 import { adicionarFavoritoNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
-import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
+import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface CifraResult {
   titulo: string;
@@ -71,13 +70,13 @@ export default function MusicaSlugPage() {
     if (!cifraData) return;
     if (user) {
       if (favorito) { await removerFavoritoNuvem(slug); setFavorito(false); }
-      else          { await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista); setFavorito(true); }
+      else { await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista); setFavorito(true); }
     } else {
       try {
-        const raw   = localStorage.getItem('tom-certo:favoritos');
+        const raw = localStorage.getItem('tom-certo:favoritos');
         const atual = raw ? JSON.parse(raw) : [];
         const existe = atual.some((x: any) => (typeof x === 'string' ? x : x.id) === slug);
-        const nova   = existe
+        const nova = existe
           ? atual.filter((x: any) => (typeof x === 'string' ? x : x.id) !== slug)
           : [...atual, { id: slug, titulo: cifraData?.titulo, artista: cifraData?.artista }];
         salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
@@ -93,7 +92,11 @@ export default function MusicaSlugPage() {
     registrarDeteccao(slug, nota, est);
   }
 
-  /* ── Loading ── */
+  function voltar() {
+    if (window.history.length > 1) router.back();
+    else router.push('/');
+  }
+
   if (carregando) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
@@ -106,11 +109,10 @@ export default function MusicaSlugPage() {
     );
   }
 
-  /* ── Erro ── */
   if (erro || !cifraData) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)', padding: '16px', maxWidth: 860, margin: '0 auto' }}>
-        <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)', padding: '16px' }}>
+        <button onClick={voltar} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
           <ArrowLeft size={16} /> Voltar
         </button>
         <div style={{ borderRadius: 16, border: '1px solid rgba(226,75,74,0.3)', background: 'var(--tc-s1)', padding: 24, textAlign: 'center' }}>
@@ -135,25 +137,21 @@ export default function MusicaSlugPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
-
-      {/* ── Wrapper centralizado ── */}
       <div style={{ maxWidth: 860, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', flexShrink: 0 }}>
           <button
-            onClick={() => router.back()}
+            onClick={voltar}
             aria-label="Voltar"
             style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-txt2)', cursor: 'pointer', flexShrink: 0 }}
           >
             <ArrowLeft size={16} />
           </button>
-
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cifraData.titulo}</p>
             <p style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{cifraData.artista}</p>
           </div>
-
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <IcoBtn onClick={toggleFavorito} active={favorito} aria-label="Favoritar">
               <Heart size={16} fill={favorito ? 'currentColor' : 'none'} />
@@ -167,7 +165,7 @@ export default function MusicaSlugPage() {
           </div>
         </div>
 
-        {/* ── Barra de tom + transposição ── */}
+        {/* Barra de tom + transposição + fonte */}
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--tc-s1)', borderTop: '0.5px solid var(--tc-border)', borderBottom: '0.5px solid var(--tc-border)', padding: '9px 16px', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Tom</span>
@@ -177,7 +175,27 @@ export default function MusicaSlugPage() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Controle de fonte integrado */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 8px' }}>
+              <button
+                onClick={() => setTamanhoFonte(t => Math.max(12, t - 1))}
+                disabled={tamanhoFonte <= 12}
+                style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                A-
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--tc-txt3)', minWidth: 20, textAlign: 'center' }}>{tamanhoFonte}</span>
+              <button
+                onClick={() => setTamanhoFonte(t => Math.min(24, t + 1))}
+                disabled={tamanhoFonte >= 24}
+                style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                A+
+              </button>
+            </div>
+
+            {/* Transposição */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 10px' }}>
               <TransBtn onClick={() => setAjusteManual(a => a - 1)}>−</TransBtn>
               <span style={{ fontSize: 11, color: 'var(--tc-txt2)', minWidth: 32, textAlign: 'center' }}>½ Tom</span>
@@ -210,81 +228,38 @@ export default function MusicaSlugPage() {
           </div>
         </div>
 
-        {/* ── Controle de fonte ── */}
-        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: 'var(--tc-bg)', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
-          <ControleFonte
-            tamanho={tamanhoFonte}
-            onAumentar={() => setTamanhoFonte(t => Math.min(24, t + 1))}
-            onDiminuir={() => setTamanhoFonte(t => Math.max(12, t - 1))}
-          />
-        </div>
-
-        {/* ── Gravador ── */}
+        {/* Gravador */}
         {mostrarGravador && (
           <div className="no-print" style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
             <GravadorDeTom onTomDetectado={handleTomDetectado} />
           </div>
         )}
 
-        {/* ── Título para impressão ── */}
+        {/* Título para impressão */}
         <div className="hidden print:block" style={{ padding: '16px' }}>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>{cifraData.titulo}</h1>
           <p style={{ fontSize: 13 }}>{cifraData.artista} — Tom: {tomAtual}</p>
         </div>
 
-        {/* ── Cifra ── */}
+        {/* Cifra */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: 80 }}>
           <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
         </div>
 
       </div>
 
-      {/* ── Decoração lateral desktop ── */}
-      <style>{`
-        @media (min-width: 720px) {
-          .cifra-side {
-            position: fixed;
-            top: 0;
-            bottom: 0;
-            width: calc((100vw - 680px) / 2);
-            background: repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 39px,
-              rgba(212,160,23,0.04) 39px,
-              rgba(212,160,23,0.04) 40px
-            );
-          }
-          .cifra-side-left  { left: 0; }
-          .cifra-side-right { right: 0; }
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
-      <div className="cifra-side cifra-side-left" />
-      <div className="cifra-side cifra-side-right" />
-
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
     </div>
   );
 }
 
-/* ── Sub-componentes ── */
 function IcoBtn({ children, onClick, active, 'aria-label': label }: {
   children: React.ReactNode; onClick?: () => void; active?: boolean; 'aria-label'?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      style={{
-        width: 34, height: 34, borderRadius: 10,
-        background: active ? 'var(--tc-gold-dim)' : 'var(--tc-s1)',
-        border: `0.5px solid ${active ? 'var(--tc-gold-border)' : 'var(--tc-border)'}`,
-        color: active ? 'var(--tc-gold)' : 'var(--tc-txt2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer', transition: 'all 0.2s',
-      }}
-    >
+    <button onClick={onClick} aria-label={label}
+      style={{ width: 34, height: 34, borderRadius: 10, background: active ? 'var(--tc-gold-dim)' : 'var(--tc-s1)', border: `0.5px solid ${active ? 'var(--tc-gold-border)' : 'var(--tc-border)'}`, color: active ? 'var(--tc-gold)' : 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
       {children}
     </button>
   );
@@ -292,16 +267,8 @@ function IcoBtn({ children, onClick, active, 'aria-label': label }: {
 
 function TransBtn({ children, onClick }: { children: string; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        width: 24, height: 24, borderRadius: 6,
-        background: 'var(--tc-s3)', border: '0.5px solid var(--tc-border)',
-        color: 'var(--tc-txt)', fontSize: 14, fontWeight: 700,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer',
-      }}
-    >
+    <button onClick={onClick}
+      style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--tc-s3)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt)', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
       {children}
     </button>
   );

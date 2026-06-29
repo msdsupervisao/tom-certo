@@ -119,7 +119,7 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
 
       <div
         ref={containerRef}
-        className="relative z-10 max-h-[60vh] overflow-y-auto p-5 font-mono md:p-6"
+        className="relative z-10 max-h-[100vh] overflow-y-auto p-5 font-mono md:p-6"
         style={{ fontSize: `${tamanhoFonte}px`, lineHeight: 1.7 }}
       >
         <div style={duasColunas ? { columns: 2, columnGap: '2rem' } : {}}>
