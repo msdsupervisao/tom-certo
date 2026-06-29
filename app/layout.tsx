@@ -1,11 +1,18 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import NavbarComFavoritos from '@/app/components/NavbarComFavoritos';
 import { AuthProvider } from '@/app/components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Tom Certo — Cifras no seu tom',
   description: 'Cante um trecho, receba a cifra no seu tom — sem ficar adivinhando capotraste.',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0D0D0D',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,10 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AuthProvider>
-          <NavbarComFavoritos />
-          <div className="mx-auto max-w-md px-5 py-8 md:max-w-3xl md:px-8">
-            {children}
-          </div>
+          {children}
         </AuthProvider>
       </body>
     </html>

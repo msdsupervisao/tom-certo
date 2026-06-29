@@ -1,184 +1,54 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
-import { obterTomMaisFrequente, obterPrecisaoMedia, obterTotalAnalises, obterUltimaAnalise, obterFavoritos, alternarFavorito, obterMusicasVisitadas, MusicaVisitada } from '@/lib/historico-local';
+import {
+  obterTomMaisFrequente, obterPrecisaoMedia, obterTotalAnalises,
+  obterUltimaAnalise, obterMusicasVisitadas, MusicaVisitada
+} from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import Afinador from '@/app/components/Afinador';
+import { Mic, SlidersHorizontal, Search, Music, ChevronRight, Heart } from 'lucide-react';
 
 const CACHE_CAPAS: Record<string, string> = {};
 
-interface ResultadoBusca {
-  titulo: string;
-  artista: string;
-  url: string;
+interface FavItem {
+  id: string;
+  titulo?: string;
+  artista?: string;
   slug: string;
-}
-
-function BuscaMusica() {
-  const [query, setQuery] = useState('');
-  const [resultados, setResultados] = useState<ResultadoBusca[]>([]);
-  const [carregando, setCarregando] = useState(false);
-  const [aberto, setAberto] = useState(false);
-  const [erro, setErro] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const router = useRouter();
-
-  const buscar = useCallback(async (q: string) => {
-    setCarregando(true);
-    setErro('');
-    try {
-      const res = await fetch(`/api/buscar?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setResultados(data.resultados || []);
-      setAberto(true);
-    } catch {
-      setErro('Erro ao buscar. Tente novamente.');
-      setResultados([]);
-    } finally {
-      setCarregando(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (query.length < 2) { setResultados([]); setAberto(false); return; }
-    timerRef.current = setTimeout(() => buscar(query), 400);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [query, buscar]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setAberto(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  function handleSelect(r: ResultadoBusca) {
-    setAberto(false);
-    setQuery('');
-    try {
-      const raw = localStorage.getItem('tom-certo:favoritos');
-      const historico = JSON.parse(localStorage.getItem('historico_musicas') || '[]');
-      const nova = { id: r.slug, titulo: r.titulo, artista: r.artista, url: r.url, acessadaEm: new Date().toISOString() };
-      const atualizado = [nova, ...historico.filter((m: { id: string }) => m.id !== nova.id)].slice(0, 20);
-      localStorage.setItem('historico_musicas', JSON.stringify(atualizado));
-    } catch {}
-    router.push(`/musica/${r.slug}`);
-  }
-
-  return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        background: 'var(--panel)', border: '2px solid var(--violeta)',
-        borderRadius: 14, padding: '6px 6px 6px 16px',
-        boxShadow: '0 0 20px rgba(108,92,231,0.15)',
-      }}>
-        <span style={{ fontSize: 16, color: 'var(--violeta)' }}>🔍</span>
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Escape' && setAberto(false)}
-          onFocus={() => resultados.length > 0 && setAberto(true)}
-          placeholder="Buscar música ou artista..."
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 15, color: 'var(--text)', padding: '8px 0' }}
-        />
-        {carregando && (
-          <div style={{ width: 18, height: 18, border: '2px solid rgba(108,92,231,0.3)', borderTopColor: 'var(--violeta)', borderRadius: '50%', animation: 'tc-spin 0.7s linear infinite', flexShrink: 0 }} />
-        )}
-        {query && !carregando && (
-          <button onClick={() => { setQuery(''); setResultados([]); setAberto(false); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-dim)', padding: '0 8px', flexShrink: 0 }}>
-            ✕
-          </button>
-        )}
-      </div>
-
-      {aberto && (resultados.length > 0 || erro) && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-          background: 'var(--panel)', border: '1px solid var(--border)',
-          borderRadius: 14, overflow: 'hidden', zIndex: 1000,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
-        }}>
-          {erro && <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-dim)' }}>{erro}</div>}
-          {resultados.map((r, i) => (
-            <button key={i} onClick={() => handleSelect(r)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                padding: '12px 16px', background: 'none', border: 'none',
-                borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                cursor: 'pointer', textAlign: 'left',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(108,92,231,0.1)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🎵</div>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.titulo}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.artista}</div>
-              </div>
-              <span style={{ fontSize: 12, color: 'var(--violeta)', flexShrink: 0 }}>→</span>
-            </button>
-          ))}
-          {resultados.length === 0 && !erro && (
-            <div style={{ padding: '14px 16px', fontSize: 14, color: 'var(--text-dim)' }}>
-              Nenhuma música encontrada para "{query}"
-            </div>
-          )}
-        </div>
-      )}
-      <style>{`@keyframes tc-spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
+  isMock: boolean;
 }
 
 export default function Home() {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
-  const [url, setUrl] = useState('');
-  const [erro, setErro] = useState('');
-  const [afinadorAberto, setAfinadorAberto] = useState(false);
-  const [perfil, setPerfil] = useState<{
-    tom: string | null; precisao: number | null;
-    total: number; ultima: number | null;
-  } | null>(null);
-  const [capas, setCapas] = useState<Record<string, string>>({});
-  const [favoritos, setFavoritos] = useState<string[]>([]);
-  const [favoritosCompletos, setFavoritosCompletos] = useState<Array<{id: string; titulo?: string; artista?: string; slug: string; isMock: boolean}>>([]);
-  const [visitadas, setVisitadas] = useState<MusicaVisitada[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
+  const [afinadorAberto, setAfinadorAberto]         = useState(false);
+  const [perfil, setPerfil]                         = useState<{ tom: string | null; precisao: number | null; total: number } | null>(null);
+  const [capas, setCapas]                           = useState<Record<string, string>>({});
+  const [favoritos, setFavoritos]                   = useState<string[]>([]);
+  const [favoritosCompletos, setFavoritosCompletos] = useState<FavItem[]>([]);
+  const [visitadas, setVisitadas]                   = useState<MusicaVisitada[]>([]);
+  const [query, setQuery]                           = useState('');
 
+  /* ── Recarrega dados do localStorage ── */
   function recarregarDados() {
     setPerfil({
-      tom: obterTomMaisFrequente(),
+      tom:      obterTomMaisFrequente(),
       precisao: obterPrecisaoMedia(),
-      total: obterTotalAnalises(),
-      ultima: obterUltimaAnalise(),
+      total:    obterTotalAnalises(),
     });
     try {
       const raw = localStorage.getItem('tom-certo:favoritos');
-      if (!raw) { setFavoritos([]); return; }
+      if (!raw) { setFavoritos([]); setFavoritosCompletos([]); return; }
       const parsed = JSON.parse(raw);
-      const ids = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
+      const ids    = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
       setFavoritos(ids);
       const itens = parsed.map((x: any) => {
-        const id = typeof x === 'string' ? x : x.id;
+        const id       = typeof x === 'string' ? x : x.id;
         const mockSong = buscarMusicaPorId(id);
         if (mockSong) return { id, titulo: mockSong.titulo, artista: mockSong.artista, slug: id, isMock: true };
         return { id, titulo: x.titulo, artista: x.artista, slug: id, isMock: false };
@@ -193,6 +63,7 @@ export default function Home() {
     return escutarStorage(recarregarDados);
   }, [pathname]);
 
+  /* ── Busca capas no Spotify ── */
   useEffect(() => {
     const todas = [
       ...visitadas.map(v => ({ id: v.id, titulo: v.titulo, artista: v.artista })),
@@ -200,351 +71,263 @@ export default function Home() {
     ];
     todas.forEach(item => {
       if (!item.titulo) return;
-      if (CACHE_CAPAS[item.id]) {
-        setCapas(prev => ({ ...prev, [item.id]: CACHE_CAPAS[item.id] }));
-        return;
-      }
+      if (CACHE_CAPAS[item.id]) { setCapas(prev => ({ ...prev, [item.id]: CACHE_CAPAS[item.id] })); return; }
       fetch(`/api/spotify?q=${encodeURIComponent(item.titulo + ' ' + item.artista)}`)
         .then(r => r.json())
-        .then(d => {
-          if (d.imagem) {
-            CACHE_CAPAS[item.id] = d.imagem;
-            setCapas(prev => ({ ...prev, [item.id]: d.imagem }));
-          }
-        }).catch(() => {});
+        .then(d => { if (d.imagem) { CACHE_CAPAS[item.id] = d.imagem; setCapas(prev => ({ ...prev, [item.id]: d.imagem })); } })
+        .catch(() => {});
     });
   }, [visitadas, favoritosCompletos]);
 
-  function abrirUrl() {
-    setErro('');
-    const trimada = url.trim();
-    const match = trimada.match(/cifraclub\.com\.br\/([a-z0-9-]+)\/([a-z0-9-]+)/);
-    if (match) { router.push(`/musica/${match[1]}/${match[2]}`); return; }
-    setErro('Cole uma URL válida do Cifra Club. Ex: cifraclub.com.br/legiao-urbana/tempo-perdido/');
-  }
-
+  /* ── Toggle favorito ── */
   function toggleFav(id: string, titulo?: string, artista?: string) {
     try {
-      const raw = localStorage.getItem('tom-certo:favoritos');
-      const atual: Array<{id: string; titulo?: string; artista?: string}> = raw ? JSON.parse(raw) : [];
-      const normalizado = atual.map((x: any) => typeof x === 'string' ? { id: x } : x);
-      const existe = normalizado.some((x: any) => x.id === id);
-      const nova = existe
-        ? normalizado.filter((x: any) => x.id !== id)
-        : [...normalizado, { id, titulo, artista }];
+      const raw    = localStorage.getItem('tom-certo:favoritos');
+      const atual: Array<{ id: string; titulo?: string; artista?: string }> = raw ? JSON.parse(raw) : [];
+      const norm   = atual.map((x: any) => typeof x === 'string' ? { id: x } : x);
+      const existe = norm.some((x: any) => x.id === id);
+      const nova   = existe ? norm.filter((x: any) => x.id !== id) : [...norm, { id, titulo, artista }];
       salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
       setFavoritos(nova.map((x: any) => x.id));
-    } catch (e) {
-      console.error('Erro ao salvar favorito:', e);
-    }
+    } catch {}
   }
 
-  const temHistorico = perfil !== null && perfil.total > 0;
+  const temTom     = perfil && perfil.total > 0 && perfil.tom;
+  const ultimaVisitada = visitadas[0];
 
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--text)', minHeight: '100vh' }}>
-      {/* HERO */}
-      <section style={{ background: 'linear-gradient(135deg, #0d0a1f 0%, #1a0a2e 50%, #0d1a2e 100%)', padding: isMobile ? '32px 16px 48px' : '48px 24px 64px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: '20%', width: 200, height: 400, background: 'radial-gradient(ellipse, rgba(108,92,231,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: 0, right: '15%', width: 200, height: 350, background: 'radial-gradient(ellipse, rgba(255,93,143,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg, #0D0D0D)', color: 'var(--tc-txt, #F0EDE6)', fontFamily: 'var(--font-ui, Inter, sans-serif)' }}>
 
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 32 : 48, alignItems: 'center' }}>
+      {/* ── Header ── */}
+      <div style={{ padding: '14px 16px 8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3.2rem)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, color: '#fff' }}>
-              Pare de adivinhar o capotraste.
-            </h1>
-            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', marginBottom: 32, lineHeight: 1.6 }}>
-              Descubra seu tom vocal com precisão e tenha cifras transpostas na medida certa para você.
+            <span style={{ fontFamily: 'var(--font-display, "Playfair Display", serif)', fontSize: 22, fontWeight: 700, color: 'var(--tc-gold, #D4A017)', letterSpacing: -0.5 }}>
+              Tom<span style={{ color: 'var(--tc-txt3, #5A5450)', fontWeight: 500 }}>Certo</span>
+            </span>
+            <p style={{ fontSize: 11, color: 'var(--tc-txt3, #5A5450)', marginTop: 2 }}>Boa tarde</p>
+          </div>
+          <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold, #D4A017)', fontSize: 12, fontWeight: 600 }}>
+            M
+          </Link>
+        </div>
+      </div>
+
+      {/* ── Scroll ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 80px' }}>
+
+        {/* ── BENTO GRID ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
+
+          {/* Hero — Tom vocal (full width) */}
+          <div
+            onClick={() => router.push('/buscar')}
+            style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}
+          >
+            <p style={{ fontSize: 10, color: 'var(--tc-gold,#D4A017)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Mic size={12} /> Tom vocal detectado
             </p>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button onClick={() => document.getElementById('campo-url')?.focus()}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--violeta)', color: '#fff', border: 'none', borderRadius: 50, padding: '14px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 0 32px rgba(108,92,231,0.5)' }}>
-                🎤 Descobrir meu tom
-              </button>
-              <button onClick={() => setAfinadorAberto(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.2)', borderRadius: 50, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-                🎸 Afinador
-              </button>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontFamily: 'var(--font-display,"Playfair Display",serif)', fontSize: 44, fontWeight: 700, color: 'var(--tc-txt,#F0EDE6)', lineHeight: 1, letterSpacing: -1 }}>
+                  {temTom ? perfil!.tom : '—'}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--tc-txt2,#A09890)', marginTop: 4 }}>
+                  {temTom ? `${perfil!.total} análises · ${perfil!.precisao}% precisão` : 'Cante para detectar seu tom'}
+                </p>
+              </div>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--tc-gold,#D4A017)', color: '#0D0D0D', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 30 }}>
+                <Music size={13} /> Buscar cifras
+              </span>
             </div>
-            <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>🛡️ Rápido, seguro e 100% no seu dispositivo</p>
           </div>
 
-          {/* Perfil Vocal */}
-          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(108,92,231,0.4)', borderRadius: 20, padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'var(--violeta)', borderRadius: 12, padding: '8px 10px', fontSize: 18 }}>🎙️</div>
-                <div>
-                  <p style={{ fontWeight: 700, margin: 0, color: '#fff' }}>Seu perfil vocal</p>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
-                    {temHistorico ? 'Analisado há pouco' : 'Ainda sem análises'}
-                  </p>
-                </div>
-              </div>
-              {temHistorico && (
-                <span style={{ background: 'rgba(45,212,191,0.15)', color: '#2dd4bf', borderRadius: 50, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>✓ Atualizado</span>
-              )}
-            </div>
+          {/* Detectar tom */}
+          <div
+            onClick={() => router.push('/musica')}
+            style={{ background: 'var(--tc-s1,#1A1A1A)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}
+          >
+            <Mic size={26} style={{ color: 'var(--tc-gold,#D4A017)', marginBottom: 8 }} />
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt,#F0EDE6)' }}>Detectar tom</p>
+            <p style={{ fontSize: 11, color: 'var(--tc-txt2,#A09890)', marginTop: 3 }}>Via microfone</p>
+          </div>
 
-            {temHistorico ? (
+          {/* Afinador */}
+          <div
+            onClick={() => setAfinadorAberto(true)}
+            style={{ background: 'var(--tc-s1,#1A1A1A)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}
+          >
+            <SlidersHorizontal size={26} style={{ color: 'var(--tc-gold,#D4A017)', marginBottom: 8 }} />
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt,#F0EDE6)' }}>Afinador</p>
+            <p style={{ fontSize: 11, color: 'var(--tc-txt2,#A09890)', marginTop: 3 }}>Tempo real</p>
+          </div>
+
+          {/* Stats */}
+          <div style={{ background: 'var(--tc-s1,#1A1A1A)', border: '0.5px solid rgba(212,160,23,0.2)', borderRadius: 18, padding: 16 }}>
+            <p style={{ fontSize: 10, color: 'var(--tc-gold,#D4A017)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Suas stats</p>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div>
+                <p style={{ fontFamily: 'var(--font-display,"Playfair Display",serif)', fontSize: 22, fontWeight: 700, color: 'var(--tc-gold,#D4A017)' }}>{favoritosCompletos.length}</p>
+                <p style={{ fontSize: 10, color: 'var(--tc-txt3,#5A5450)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>favoritas</p>
+              </div>
+              <div>
+                <p style={{ fontFamily: 'var(--font-display,"Playfair Display",serif)', fontSize: 22, fontWeight: 700, color: 'var(--tc-gold,#D4A017)' }}>{perfil?.total ?? 0}</p>
+                <p style={{ fontSize: 10, color: 'var(--tc-txt3,#5A5450)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>análises</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Última sessão */}
+          <div
+            onClick={() => ultimaVisitada && router.push(`/musica/${ultimaVisitada.id}`)}
+            style={{ background: 'rgba(212,160,23,0.06)', border: '0.5px solid rgba(212,160,23,0.2)', borderRadius: 18, padding: 16, cursor: ultimaVisitada ? 'pointer' : 'default' }}
+          >
+            <p style={{ fontSize: 10, color: 'var(--tc-gold,#D4A017)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Última sessão</p>
+            {ultimaVisitada ? (
               <>
-                <p style={{ fontSize: 10, letterSpacing: 1, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', margin: '0 0 4px' }}>Seu tom identificado</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div>
-                    <p style={{ fontSize: 34, fontWeight: 900, margin: '0 0 6px', color: '#fff' }}>Tom {perfil!.tom}</p>
-                    <span style={{ background: 'rgba(108,92,231,0.25)', color: 'var(--violeta)', borderRadius: 50, padding: '3px 12px', fontSize: 12, fontWeight: 600 }}>Fácil para cantar</span>
-                  </div>
-                  <div style={{ width: 60, height: 60, borderRadius: '50%', border: '3px solid var(--violeta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, color: 'var(--violeta)' }}>
-                    {perfil!.tom}
-                  </div>
-                </div>
-                <Equalizador />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 14 }}>
-                  <StatCard icon="🎵" label="EXTENSÃO" value="1.2 oitavas" sub="Barítono" />
-                  <StatCard icon="🎯" label="ACURÁCIA" value={`${perfil!.precisao}%`} sub="Excelente" />
-                  <StatCard icon="📈" label="ANÁLISES" value={String(perfil!.total)} sub="Total" />
-                </div>
+                <p style={{ fontSize: 12, color: 'var(--tc-txt,#F0EDE6)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ultimaVisitada.titulo}</p>
+                <p style={{ fontSize: 10, color: 'var(--tc-txt2,#A09890)', marginTop: 2 }}>{ultimaVisitada.artista}</p>
               </>
             ) : (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <p style={{ fontSize: 36, margin: '0 0 8px' }}>🎤</p>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Cole uma cifra e cante para criar seu perfil</p>
-              </div>
+              <p style={{ fontSize: 11, color: 'var(--tc-txt3,#5A5450)' }}>Nenhuma ainda</p>
             )}
           </div>
         </div>
-      </section>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
-        {/* COMO FUNCIONA */}
-        <section style={{ padding: '36px 0 28px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
-            {[
-              { n: 1, icon: '🎙️', title: 'Cante uma referência', desc: 'Cante por 10-15s em voz confortável.' },
-              { n: 2, icon: '🎵', title: 'Analisamos seu tom', desc: 'Nosso algoritmo detecta sua nota fundamental.' },
-              { n: 3, icon: '🎸', title: 'Geramos as cifras', desc: 'Transpondo para o tom ideal para você.' },
-              { n: 4, icon: '🎶', title: 'Toque e cante melhor', desc: 'Cante com mais conforto e confiança.' },
-            ].map(({ n, icon, title, desc }) => (
-              <div key={n} style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <div style={{ background: 'var(--violeta)', color: '#fff', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{n}</div>
-                  <span style={{ fontSize: 18 }}>{icon}</span>
-                </div>
-                <p style={{ fontWeight: 700, margin: '0 0 4px', fontSize: 13 }}>{title}</p>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>{desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* BUSCA + URL */}
-        <div style={{ marginBottom: 32 }}>
-          <BuscaMusica />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>ou cole o link direto</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'var(--panel)', border: '2px solid var(--border)', borderRadius: 14, padding: '6px 6px 6px 16px' }}>
-            <span style={{ fontSize: 16, color: 'var(--text-dim)' }}>🔗</span>
-            <input
-              id="campo-url"
-              type="text"
-              value={url}
-              onChange={e => { setUrl(e.target.value); setErro(''); }}
-              onKeyDown={e => e.key === 'Enter' && abrirUrl()}
-              placeholder="cifraclub.com.br/legiao-urbana/tempo-perdido/"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 15, color: 'var(--text)', padding: '8px 0' }}
-            />
-            <button onClick={abrirUrl}
-              style={{ background: 'var(--violeta)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
-              Abrir
-            </button>
-          </div>
-          {erro && <p style={{ color: 'var(--color-error, #ff5d8f)', fontSize: 12, marginTop: 6 }}>{erro}</p>}
+        {/* ── Busca rápida ── */}
+        <div
+          onClick={() => router.push('/buscar')}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tc-s1,#1A1A1A)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 14px', marginBottom: 14, cursor: 'pointer' }}
+        >
+          <Search size={18} style={{ color: 'var(--tc-txt3,#5A5450)' }} />
+          <span style={{ fontSize: 14, color: 'var(--tc-txt3,#5A5450)' }}>Buscar música ou artista...</span>
         </div>
 
-        {/* FAVORITOS */}
+        {/* ── Favoritas ── */}
         {favoritosCompletos.length > 0 && (
-          <FavoritosSection favoritosCompletos={favoritosCompletos} capas={capas} toggleFav={toggleFav} />
+          <>
+            <StripLabel label="Favoritas" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {favoritosCompletos.slice(0, 4).map(f => {
+                const titulo  = f.titulo  || f.id.split('/')[1]?.replace(/-/g, ' ') || 'Música';
+                const artista = f.artista || f.id.split('/')[0]?.replace(/-/g, ' ') || 'Artista';
+                const href    = f.isMock  ? `/musica/${f.id}` : `/musica/${f.slug}`;
+                return (
+                  <MusicaRow
+                    key={f.id}
+                    href={href}
+                    titulo={titulo}
+                    artista={artista}
+                    badge=""
+                    transposed={false}
+                    rightSlot={
+                      <button
+                        onClick={e => { e.preventDefault(); toggleFav(f.id, f.titulo, f.artista); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tc-gold,#D4A017)', padding: 4 }}
+                      >
+                        <Heart size={14} fill="currentColor" />
+                      </button>
+                    }
+                  />
+                );
+              })}
+              {favoritosCompletos.length > 4 && (
+                <Link href="/favoritas" style={{ fontSize: 12, color: 'var(--tc-gold,#D4A017)', textAlign: 'center', padding: '6px 0', textDecoration: 'none' }}>
+                  Ver todas ({favoritosCompletos.length})
+                </Link>
+              )}
+            </div>
+          </>
         )}
 
-        {/* HISTÓRICO */}
-        <section style={{ marginBottom: 48 }}>
-          {visitadas.length > 0 ? (
-            <>
-              <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-dim)', marginBottom: 14 }}>
-                🕐 Acessadas recentemente
-              </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-                {visitadas.map(item => (
-                  <VisitadaCard
-                    key={item.id}
-                    item={item}
-                    capa={capas[item.id]}
-                    isFav={favoritos.includes(item.id)}
-                    onFav={() => toggleFav(item.id, item.titulo, item.artista)}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--panel)', borderRadius: 20, border: '1px solid var(--border)' }}>
-              <p style={{ fontSize: 48, marginBottom: 12 }}>🎵</p>
-              <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Nenhuma música acessada ainda</p>
-              <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6 }}>
-                Busque uma música acima ou cole o link do Cifra Club.
-              </p>
+        {/* ── Recentes ── */}
+        {visitadas.length > 0 && (
+          <>
+            <StripLabel label="Acessadas recentemente" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {visitadas.slice(0, 6).map(v => (
+                <MusicaRow
+                  key={v.id}
+                  href={`/musica/${v.id}`}
+                  titulo={v.titulo}
+                  artista={v.artista}
+                  badge=""
+                  transposed={false}
+                  rightSlot={
+                    <button
+                      onClick={e => { e.preventDefault(); toggleFav(v.id, v.titulo, v.artista); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: favoritos.includes(v.id) ? 'var(--tc-gold,#D4A017)' : 'var(--tc-txt3,#5A5450)', padding: 4 }}
+                    >
+                      <Heart size={14} fill={favoritos.includes(v.id) ? 'currentColor' : 'none'} />
+                    </button>
+                  }
+                />
+              ))}
             </div>
-          )}
-        </section>
+          </>
+        )}
+
+        {/* Empty state */}
+        {visitadas.length === 0 && favoritosCompletos.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--tc-s1,#1A1A1A)', borderRadius: 20, border: '0.5px solid rgba(255,255,255,0.07)' }}>
+            <Music size={48} style={{ color: 'var(--tc-txt3,#5A5450)', marginBottom: 12 }} />
+            <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Nenhuma música ainda</p>
+            <p style={{ color: 'var(--tc-txt2,#A09890)', fontSize: 13, lineHeight: 1.6 }}>Busque uma música acima para começar.</p>
+          </div>
+        )}
+
       </div>
+
+      {/* ── Bottom Nav ── */}
+      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, display: 'flex', background: 'rgba(20,20,20,0.97)', borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingBottom: 'env(safe-area-inset-bottom, 18px)', paddingTop: 10, zIndex: 100 }}>
+        {[
+          { href: '/',          icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>, label: 'Início',    active: true  },
+          { href: '/buscar',    icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>, label: 'Buscar',    active: false },
+          { href: '/favoritas', icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>, label: 'Favoritas', active: false },
+          { href: '/perfil',    icon: <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, label: 'Perfil',    active: false },
+        ].map(tab => (
+          <Link key={tab.href} href={tab.href} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab.active ? 'var(--tc-gold,#D4A017)' : 'var(--tc-txt3,#5A5450)', textDecoration: 'none' }}>
+            {tab.icon}
+            <span style={{ fontSize: 10, fontWeight: 500 }}>{tab.label}</span>
+          </Link>
+        ))}
+      </nav>
 
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
     </div>
   );
 }
 
-function StatCard({ icon, label, value, sub }: { icon: string; label: string; value: string; sub: string }) {
+/* ── Sub-componentes ── */
+function StripLabel({ label }: { label: string }) {
   return (
-    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 10 }}>
-      <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 3px' }}>{icon} {label}</p>
-      <p style={{ fontSize: 18, fontWeight: 800, margin: '0 0 1px', color: '#fff' }}>{value}</p>
-      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: 0 }}>{sub}</p>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 10px' }}>
+      <div style={{ flex: 1, height: '0.5px', background: 'rgba(255,255,255,0.07)' }} />
+      <span style={{ fontSize: 10, color: 'var(--tc-txt3,#5A5450)', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>
+      <div style={{ flex: 1, height: '0.5px', background: 'rgba(255,255,255,0.07)' }} />
     </div>
   );
 }
 
-function Equalizador() {
-  const alturas = [30, 50, 70, 90, 70, 50, 80, 60, 40, 70, 90, 50, 30, 60, 80, 70, 50, 40, 60, 80];
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 56 }}>
-      {alturas.map((h, i) => (
-        <div key={i} style={{
-          flex: 1, borderRadius: 3,
-          background: 'linear-gradient(to top, #6c5ce7, #ff5d8f)',
-          height: `${h}%`,
-          animation: `onda ${0.8 + (i % 5) * 0.2}s ease-in-out infinite alternate`,
-          animationDelay: `${i * 0.05}s`,
-        }} />
-      ))}
-    </div>
-  );
-}
-
-function FavoritosSection({ favoritosCompletos, capas, toggleFav }: {
-  favoritosCompletos: Array<{id: string; titulo?: string; artista?: string; slug: string; isMock: boolean}>;
-  capas: Record<string, string>;
-  toggleFav: (id: string, titulo?: string, artista?: string) => void;
+function MusicaRow({ href, titulo, artista, badge, transposed, rightSlot }: {
+  href: string; titulo: string; artista: string;
+  badge: string; transposed: boolean;
+  rightSlot?: React.ReactNode;
 }) {
-  const [expandido, setExpandido] = useState(true);
-  const LIMITE = 4;
-  const [verTodos, setVerTodos] = useState(false);
-  const lista = verTodos ? favoritosCompletos : favoritosCompletos.slice(0, LIMITE);
-
   return (
-    <section style={{ marginBottom: 36 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-dim)', margin: 0 }}>
-            ❤️ Minhas favoritas
-          </h2>
-          <span style={{ background: 'var(--violeta)', color: '#fff', borderRadius: 50, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>
-            {favoritosCompletos.length}
-          </span>
-        </div>
-        <button
-          onClick={() => setExpandido(e => !e)}
-          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 12px', fontSize: 12, cursor: 'pointer', color: 'var(--text-dim)' }}
-        >
-          {expandido ? '▲ Ocultar' : '▼ Mostrar'}
-        </button>
+    <Link
+      href={href}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--tc-s1,#1A1A1A)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, textDecoration: 'none' }}
+    >
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--tc-gold,#D4A017)', flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--tc-txt,#F0EDE6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titulo}</p>
+        <p style={{ fontSize: 11, color: 'var(--tc-txt2,#A09890)' }}>{artista}</p>
       </div>
-
-      {expandido && (
-        <>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {lista.map(item => {
-              const titulo = item.titulo || item.id.split('/')[1]?.replace(/-/g, ' ') || 'Música';
-              const artista = item.artista || item.id.split('/')[0]?.replace(/-/g, ' ') || 'Artista';
-              const capa = capas[item.id];
-              const href = item.isMock ? `/musica/${item.id}` : `/musica/${item.slug}`;
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    position: 'relative', width: 140, flexShrink: 0,
-                    background: 'var(--panel)', border: '1px solid var(--border)',
-                    borderRadius: 12, overflow: 'hidden',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.transform = 'scale(1.08)';
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(108,92,231,0.3)';
-                    (e.currentTarget as HTMLElement).style.zIndex = '10';
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
-                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLElement).style.zIndex = '1';
-                  }}
-                >
-                  <Link href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{ height: 80, background: capa ? `url(${capa}) center/cover` : 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', position: 'relative' }}>
-                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.7))' }} />
-                    </div>
-                    <div style={{ padding: '8px 10px' }}>
-                      <p style={{ fontWeight: 700, margin: 0, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</p>
-                      <p style={{ fontSize: 10, color: 'var(--text-dim)', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artista}</p>
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => toggleFav(item.id)}
-                    style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >❤️</button>
-                </div>
-              );
-            })}
-          </div>
-
-          {favoritosCompletos.length > LIMITE && (
-            <button
-              onClick={() => setVerTodos(v => !v)}
-              style={{ marginTop: 12, background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 16px', fontSize: 12, cursor: 'pointer', color: 'var(--text-dim)' }}
-            >
-              {verTodos ? 'Ver menos' : `Ver todas (${favoritosCompletos.length})`}
-            </button>
-          )}
-        </>
+      {badge && (
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--tc-gold,#D4A017)', background: 'rgba(212,160,23,0.12)', border: '0.5px solid rgba(212,160,23,0.3)', padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap' }}>{badge}</span>
       )}
-    </section>
-  );
-}
-
-function VisitadaCard({ item, capa, isFav, onFav }: {
-  item: MusicaVisitada;
-  capa?: string;
-  isFav: boolean;
-  onFav: () => void;
-}) {
-  const href = `/musica/${item.id}`;
-  return (
-    <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ height: 110, background: capa ? `url(${capa}) center/cover` : 'linear-gradient(135deg, #3b1f6e, #6c2a7a)', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 20%, rgba(0,0,0,0.75))' }} />
-        <button onClick={onFav}
-          style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isFav ? '❤️' : '🤍'}
-        </button>
-      </div>
-      <div style={{ padding: '12px 14px' }}>
-        <p style={{ fontWeight: 700, margin: '0 0 2px', fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.titulo}</p>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.artista}</p>
-        <Link href={href} style={{ display: 'block', textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px', fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>
-          Ver cifra
-        </Link>
-      </div>
-    </div>
+      {rightSlot || <ChevronRight size={14} style={{ color: 'var(--tc-txt3,#5A5450)', flexShrink: 0 }} />}
+    </Link>
   );
 }

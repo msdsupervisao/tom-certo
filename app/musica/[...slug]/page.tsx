@@ -11,6 +11,7 @@ import Afinador from '@/app/components/Afinador';
 import ControleFonte from '@/app/components/ControleFonte';
 import { useAuth } from '@/app/components/AuthProvider';
 import { adicionarFavoritoNuvem, removerFavoritoNuvem } from '@/lib/favoritos-nuvem';
+import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
 
 interface CifraResult {
   titulo: string;
@@ -21,21 +22,22 @@ interface CifraResult {
 }
 
 export default function MusicaSlugPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params  = useParams();
+  const router  = useRouter();
   const { user } = useAuth();
-  const slugParts = Array.isArray(params.slug) ? params.slug : [params.slug as string];
-  const slug = slugParts.join('/');
 
-  const [cifraData, setCifraData] = useState<CifraResult | null>(null);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-  const [tomDetectado, setTomDetectado] = useState<NomeNota | null>(null);
-  const [estabilidade, setEstabilidade] = useState<number | null>(null);
-  const [ajusteManual, setAjusteManual] = useState(0);
-  const [afinadorAberto, setAfinadorAberto] = useState(false);
-  const [tamanhoFonte, setTamanhoFonte] = useState(15);
-  const [favorito, setFavorito] = useState(false);
+  const slugParts = Array.isArray(params.slug) ? params.slug : [params.slug as string];
+  const slug      = slugParts.join('/');
+
+  const [cifraData,       setCifraData]       = useState<CifraResult | null>(null);
+  const [carregando,      setCarregando]      = useState(true);
+  const [erro,            setErro]            = useState<string | null>(null);
+  const [tomDetectado,    setTomDetectado]    = useState<NomeNota | null>(null);
+  const [estabilidade,    setEstabilidade]    = useState<number | null>(null);
+  const [ajusteManual,    setAjusteManual]    = useState(0);
+  const [afinadorAberto,  setAfinadorAberto]  = useState(false);
+  const [tamanhoFonte,    setTamanhoFonte]    = useState(15);
+  const [favorito,        setFavorito]        = useState(false);
   const [mostrarGravador, setMostrarGravador] = useState(false);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export default function MusicaSlugPage() {
   useEffect(() => {
     if (!user || !slug) return;
     import('@/lib/favoritos-nuvem').then(({ obterFavoritosNuvem }) => {
-      obterFavoritosNuvem().then(lista => {
+      obterFavoritosNuvem().then((lista: any[]) => {
         setFavorito(lista.some((f: any) => f.id === slug));
       });
     });
@@ -68,19 +70,14 @@ export default function MusicaSlugPage() {
   async function toggleFavorito() {
     if (!cifraData) return;
     if (user) {
-      if (favorito) {
-        await removerFavoritoNuvem(slug);
-        setFavorito(false);
-      } else {
-        await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista);
-        setFavorito(true);
-      }
+      if (favorito) { await removerFavoritoNuvem(slug); setFavorito(false); }
+      else          { await adicionarFavoritoNuvem(slug, cifraData.titulo, cifraData.artista); setFavorito(true); }
     } else {
       try {
-        const raw = localStorage.getItem('tom-certo:favoritos');
+        const raw   = localStorage.getItem('tom-certo:favoritos');
         const atual = raw ? JSON.parse(raw) : [];
         const existe = atual.some((x: any) => (typeof x === 'string' ? x : x.id) === slug);
-        const nova = existe
+        const nova   = existe
           ? atual.filter((x: any) => (typeof x === 'string' ? x : x.id) !== slug)
           : [...atual, { id: slug, titulo: cifraData?.titulo, artista: cifraData?.artista }];
         salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
@@ -89,31 +86,44 @@ export default function MusicaSlugPage() {
     }
   }
 
+  function handleTomDetectado(nota: NomeNota, est: number) {
+    setTomDetectado(nota);
+    setEstabilidade(est);
+    setMostrarGravador(false);
+    registrarDeteccao(slug, nota, est);
+  }
+
+  /* ── Loading ── */
   if (carregando) {
     return (
-      <main className="flex min-h-[40vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-border border-t-violeta" />
-          <p className="mt-4 text-sm text-text-dim">Carregando cifra...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 32, height: 32, border: '3px solid var(--tc-border)', borderTopColor: 'var(--tc-gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto' }} />
+          <p style={{ marginTop: 16, fontSize: 13, color: 'var(--tc-txt2)' }}>Carregando cifra...</p>
         </div>
-      </main>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
     );
   }
 
+  /* ── Erro ── */
   if (erro || !cifraData) {
     return (
-      <main>
-        <button onClick={() => router.back()} className="mb-4 text-sm text-text-dim">← Voltar</button>
-        <div className="rounded-2xl border border-red-500/30 bg-panel p-6 text-center">
-          <p className="text-red-400">{erro || 'Cifra não encontrada.'}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)', padding: '16px', maxWidth: 860, margin: '0 auto' }}>
+        <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 14, marginBottom: 16 }}>
+          <ArrowLeft size={16} /> Voltar
+        </button>
+        <div style={{ borderRadius: 16, border: '1px solid rgba(226,75,74,0.3)', background: 'var(--tc-s1)', padding: 24, textAlign: 'center' }}>
+          <p style={{ color: 'var(--tc-danger)' }}>{erro || 'Cifra não encontrada.'}</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   const semitons = tomDetectado
     ? calcularIntervaloSemitons(cifraData.tomOriginal as NomeNota, tomDetectado) + ajusteManual
     : ajusteManual;
+
   const cifraExibida = semitons !== 0
     ? transporCifraCompleta(cifraData.cifra, semitons)
     : cifraData.cifra;
@@ -122,96 +132,177 @@ export default function MusicaSlugPage() {
   const tomAtual = indiceOriginal >= 0
     ? NOMES_NOTAS[((indiceOriginal + semitons) % 12 + 12) % 12]
     : cifraData.tomOriginal;
-  const corEstabilidade = estabilidade !== null && estabilidade >= 70 ? 'turquesa' : 'amarelo';
-
-  function handleTomDetectado(nota: NomeNota, est: number) {
-    setTomDetectado(nota);
-    setEstabilidade(est);
-    setMostrarGravador(false);
-    registrarDeteccao(slug, nota, est);
-  }
 
   return (
-    <main>
-      <div className="no-print mb-4 flex items-center justify-between">
-        <button onClick={() => router.back()} className="text-sm text-text-dim">← Voltar</button>
-        <div className="flex items-center gap-2">
-          <button onClick={toggleFavorito}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-panel"
-            title="Favoritar">
-            {favorito ? '❤️' : '🤍'}
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
+
+      {/* ── Wrapper centralizado ── */}
+      <div style={{ maxWidth: 860, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+
+        {/* ── Header ── */}
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', flexShrink: 0 }}>
+          <button
+            onClick={() => router.back()}
+            aria-label="Voltar"
+            style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-txt2)', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <ArrowLeft size={16} />
           </button>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cifraData.titulo}</p>
+            <p style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{cifraData.artista}</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <IcoBtn onClick={toggleFavorito} active={favorito} aria-label="Favoritar">
+              <Heart size={16} fill={favorito ? 'currentColor' : 'none'} />
+            </IcoBtn>
+            <IcoBtn onClick={() => setAfinadorAberto(true)} aria-label="Afinador">
+              <SlidersHorizontal size={16} />
+            </IcoBtn>
+            <IcoBtn onClick={() => window.print()} aria-label="Imprimir">
+              <Printer size={16} />
+            </IcoBtn>
+          </div>
+        </div>
+
+        {/* ── Barra de tom + transposição ── */}
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--tc-s1)', borderTop: '0.5px solid var(--tc-border)', borderBottom: '0.5px solid var(--tc-border)', padding: '9px 16px', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Tom</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--tc-gold)' }}>{tomAtual}</span>
+            {semitons !== 0 && (
+              <span style={{ fontSize: 11, color: 'var(--tc-txt3)' }}>({semitons > 0 ? '+' : ''}{semitons} st)</span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 10px' }}>
+              <TransBtn onClick={() => setAjusteManual(a => a - 1)}>−</TransBtn>
+              <span style={{ fontSize: 11, color: 'var(--tc-txt2)', minWidth: 32, textAlign: 'center' }}>½ Tom</span>
+              <TransBtn onClick={() => setAjusteManual(a => a + 1)}>+</TransBtn>
+              {semitons !== 0 && (
+                <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-txt3)' }}>✕</button>
+              )}
+            </div>
+
+            {!mostrarGravador && !tomDetectado && (
+              <button
+                onClick={() => setMostrarGravador(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                <Mic size={13} /> Cantar para ajustar
+              </button>
+            )}
+
+            {tomDetectado && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 10, padding: '6px 12px' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: estabilidade && estabilidade >= 70 ? '#2dd4bf' : 'var(--tc-gold)', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{estabilidade}%</span>
+                <button onClick={() => { setTomDetectado(null); setEstabilidade(null); setMostrarGravador(false); setAjusteManual(0); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-gold)', fontWeight: 600 }}>
+                  Cantar de novo
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Controle de fonte ── */}
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: 'var(--tc-bg)', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
           <ControleFonte
             tamanho={tamanhoFonte}
             onAumentar={() => setTamanhoFonte(t => Math.min(24, t + 1))}
             onDiminuir={() => setTamanhoFonte(t => Math.max(12, t - 1))}
           />
-          <button onClick={() => setAfinadorAberto(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-panel"
-            title="Afinador">🎸</button>
-          <button onClick={() => window.print()}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-panel"
-            title="Imprimir/PDF">🖨️</button>
-        </div>
-      </div>
-
-      <div className="no-print mb-4">
-        <h1 className="font-display text-2xl font-bold">{cifraData.titulo}</h1>
-        <p className="text-sm text-text-dim">{cifraData.artista}</p>
-      </div>
-
-      <div className="no-print mb-3">
-        <span className="text-sm text-text-dim">Tom: </span>
-        <span className="text-sm font-bold text-violeta">{tomAtual}</span>
-        {semitons !== 0 && (
-          <span className="ml-2 text-xs text-text-dim">({semitons > 0 ? '+' : ''}{semitons} st do original)</span>
-        )}
-      </div>
-
-      <div className="no-print mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-1">
-          <button onClick={() => setAjusteManual(a => a - 1)}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-text-dim hover:bg-bg-soft">−</button>
-          <span className="min-w-[32px] text-center text-xs font-medium text-text-dim">½ Tom</span>
-          <button onClick={() => setAjusteManual(a => a + 1)}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold text-text-dim hover:bg-bg-soft">+</button>
-          {semitons !== 0 && (
-            <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }}
-              className="ml-1 text-xs text-text-dim hover:text-text" title="Resetar">↺</button>
-          )}
         </div>
 
-        {!mostrarGravador && !tomDetectado && (
-          <button onClick={() => setMostrarGravador(true)}
-            className="flex items-center gap-2 rounded-full bg-violeta px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90">
-            🎤 Cantar para ajustar o tom
-          </button>
-        )}
-        {tomDetectado && (
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-panel px-3 py-1.5">
-            <span className="flex items-center gap-2 text-sm text-text-dim">
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: `var(--${corEstabilidade})` }} />
-              Estabilidade: {estabilidade}%
-            </span>
-            <button onClick={() => { setTomDetectado(null); setEstabilidade(null); setMostrarGravador(false); setAjusteManual(0); }}
-              className="text-sm font-medium text-violeta">Cantar de novo</button>
+        {/* ── Gravador ── */}
+        {mostrarGravador && (
+          <div className="no-print" style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
+            <GravadorDeTom onTomDetectado={handleTomDetectado} />
           </div>
         )}
-      </div>
 
-      {mostrarGravador && (
-        <div className="no-print mb-4">
-          <GravadorDeTom onTomDetectado={handleTomDetectado} />
+        {/* ── Título para impressão ── */}
+        <div className="hidden print:block" style={{ padding: '16px' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700 }}>{cifraData.titulo}</h1>
+          <p style={{ fontSize: 13 }}>{cifraData.artista} — Tom: {tomAtual}</p>
         </div>
-      )}
 
-      <div className="hidden print:block print:mb-4">
-        <h1 className="text-xl font-bold">{cifraData.titulo}</h1>
-        <p className="text-sm">{cifraData.artista} — Tom: {tomDetectado || cifraData.tomOriginal}</p>
+        {/* ── Cifra ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: 80 }}>
+          <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
+        </div>
+
       </div>
-      <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
+
+      {/* ── Decoração lateral desktop ── */}
+      <style>{`
+        @media (min-width: 720px) {
+          .cifra-side {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: calc((100vw - 680px) / 2);
+            background: repeating-linear-gradient(
+              90deg,
+              transparent,
+              transparent 39px,
+              rgba(212,160,23,0.04) 39px,
+              rgba(212,160,23,0.04) 40px
+            );
+          }
+          .cifra-side-left  { left: 0; }
+          .cifra-side-right { right: 0; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+      <div className="cifra-side cifra-side-left" />
+      <div className="cifra-side cifra-side-right" />
 
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
-    </main>
+    </div>
+  );
+}
+
+/* ── Sub-componentes ── */
+function IcoBtn({ children, onClick, active, 'aria-label': label }: {
+  children: React.ReactNode; onClick?: () => void; active?: boolean; 'aria-label'?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      style={{
+        width: 34, height: 34, borderRadius: 10,
+        background: active ? 'var(--tc-gold-dim)' : 'var(--tc-s1)',
+        border: `0.5px solid ${active ? 'var(--tc-gold-border)' : 'var(--tc-border)'}`,
+        color: active ? 'var(--tc-gold)' : 'var(--tc-txt2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', transition: 'all 0.2s',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TransBtn({ children, onClick }: { children: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 24, height: 24, borderRadius: 6,
+        background: 'var(--tc-s3)', border: '0.5px solid var(--tc-border)',
+        color: 'var(--tc-txt)', fontSize: 14, fontWeight: 700,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   );
 }
