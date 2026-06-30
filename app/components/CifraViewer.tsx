@@ -15,10 +15,10 @@ interface DiagramaAtivo {
   y: number;
 }
 
-const VELOCIDADE_MIN = 0.1;
-const VELOCIDADE_MAX = 1.5;
-const VELOCIDADE_PASSO = 0.1;
-const VELOCIDADE_INICIAL = 0.5;
+const VELOCIDADE_MIN = 0.05;
+const VELOCIDADE_MAX = 0.8;
+const VELOCIDADE_PASSO = 0.05;
+const VELOCIDADE_INICIAL = 0.2;
 
 function isAcorde(palavra: string): boolean {
   return /^[A-G][#b]?(?:M|m|maj|min|dim|aug|sus|add)?[0-9]*(\([^)]*\))?(\/[A-G][#b]?)?$/.test(palavra);
@@ -94,7 +94,7 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
         <button
           onClick={() => setRolando(r => !r)}
           style={{ background: 'var(--tc-gold)', color: '#0D0D0D' }}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+          className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:opacity-90 active:scale-95"
         >
           {rolando ? '⏸ Pausar' : '▶ Rolar'}
         </button>
