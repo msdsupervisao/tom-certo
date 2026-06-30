@@ -90,10 +90,10 @@ export default function Afinador({ aberto, onFechar }: AfinadorProps) {
 
   const corStatus =
     resultado?.status === 'afinada'
-      ? 'turquesa'
+      ? '#22c55e' // verde
       : resultado?.status === 'um_pouco_desafinada'
-        ? 'amarelo'
-        : 'rosa';
+        ? '#eab308' // amarelo
+        : '#ef4444'; // vermelho
 
   return (
     <Modal aberto={aberto} onFechar={onFechar} titulo="Afinador de violão">
@@ -105,8 +105,8 @@ export default function Afinador({ aberto, onFechar }: AfinadorProps) {
         ) : (
           <>
             <div
-              className="flex h-24 w-24 items-center justify-center rounded-full text-4xl font-bold text-white"
-              style={{ backgroundColor: `var(--${corStatus})` }}
+              className="flex h-24 w-24 items-center justify-center rounded-full text-4xl font-bold text-white transition-all duration-300"
+              style={{ backgroundColor: corStatus, boxShadow: `0 0 40px ${corStatus}80` }}
             >
               {resultado.corda.nome}
             </div>
@@ -118,13 +118,13 @@ export default function Afinador({ aberto, onFechar }: AfinadorProps) {
               <div
                 className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full transition-all duration-150"
                 style={{
-                  backgroundColor: `var(--${corStatus})`,
+                  backgroundColor: corStatus,
                   left: `calc(50% + ${Math.max(-100, Math.min(100, resultado.centsDeDesvio)) * 1}px)`,
                   transform: 'translate(-50%, -50%)',
                 }}
               />
             </div>
-            <p className="mt-3 text-sm font-medium" style={{ color: `var(--${corStatus})` }}>
+            <p className="mt-3 text-sm font-medium transition-colors duration-300" style={{ color: corStatus }}>
               {resultado.status === 'afinada'
                 ? 'Afinada!'
                 : resultado.centsDeDesvio < 0

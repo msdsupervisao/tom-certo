@@ -94,14 +94,14 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
         <button
           onClick={() => setRolando(r => !r)}
           style={{ background: 'var(--tc-gold)', color: '#0D0D0D' }}
-          className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition hover:opacity-90"
+          className="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition hover:opacity-90 active:scale-95 min-h-10"
         >
           {rolando ? '⏸ Pausar' : '▶ Rolagem automática'}
         </button>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setDuasColunas(d => !d)}
-            className="flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium transition"
+            className="flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition active:scale-95"
             style={duasColunas
               ? { borderColor: 'var(--tc-gold-border)', color: 'var(--tc-gold)', background: 'var(--tc-gold-dim)' }
               : { borderColor: 'var(--tc-border)', color: 'var(--tc-txt2)' }
@@ -110,10 +110,10 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
             ⊞ {duasColunas ? '1 col' : '2 col'}
           </button>
           <button onClick={() => ajustarVelocidade(-VELOCIDADE_PASSO)} disabled={velocidade <= VELOCIDADE_MIN}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">−</button>
-          <span className="w-10 text-center text-xs tabular-nums text-text-dim">{velocidade.toFixed(1)}x</span>
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-sm font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">−</button>
+          <span className="w-12 text-center text-sm font-semibold tabular-nums text-text-dim">{velocidade.toFixed(1)}x</span>
           <button onClick={() => ajustarVelocidade(VELOCIDADE_PASSO)} disabled={velocidade >= VELOCIDADE_MAX}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-sm font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">+</button>
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-sm font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">+</button>
         </div>
       </div>
 
