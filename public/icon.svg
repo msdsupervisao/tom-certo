@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="110" fill="#0D0D0D"/>
+  <rect x="14" y="14" width="484" height="484" rx="98" fill="none" stroke="#D4A017" stroke-width="6" stroke-opacity="0.3"/>
+  <text
+    x="256" y="300"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-weight="700"
+    font-size="220"
+    letter-spacing="-10"
+    fill="#D4A017"
+  >TC</text>
+</svg>

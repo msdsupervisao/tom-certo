@@ -3,15 +3,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/app/components/AuthProvider';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
 import {
   obterTomMaisFrequente, obterPrecisaoMedia, obterTotalAnalises,
-  obterUltimaAnalise, obterMusicasVisitadas, MusicaVisitada
+  obterMusicasVisitadas, MusicaVisitada, registrarDeteccao,
 } from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
+import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import BottomNav from '@/app/components/BottomNav';
-import { Mic, SlidersHorizontal, Search, Music, ChevronRight, Heart } from 'lucide-react';
+import { Mic, SlidersHorizontal, Search, Music, Heart, X } from 'lucide-react';
+import type { NomeNota } from '@/lib/music-theory';
 
 const CACHE_CAPAS: Record<string, string> = {};
 
@@ -23,16 +26,32 @@ interface FavItem {
   isMock: boolean;
 }
 
+function saudacaoDoDia(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
 export default function Home() {
   const router   = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const [afinadorAberto, setAfinadorAberto]         = useState(false);
+  const [gravadorAberto, setGravadorAberto]         = useState(false);
+  const [tomDetectado, setTomDetectado]             = useState<string | null>(null);
   const [perfil, setPerfil]                         = useState<{ tom: string | null; precisao: number | null; total: number } | null>(null);
-  const [capas, setCapas]                           = useState<Record<string, string>>({});
   const [favoritos, setFavoritos]                   = useState<string[]>([]);
   const [favoritosCompletos, setFavoritosCompletos] = useState<FavItem[]>([]);
   const [visitadas, setVisitadas]                   = useState<MusicaVisitada[]>([]);
+
+  const primeiroNome = user?.user_metadata?.full_name?.trim()?.split(' ')[0]
+    || user?.email?.split('@')[0]?.replace(/[\d_.-]/g, '')
+    || '';
+  const saudacao = saudacaoDoDia();
+  const saudacaoCompleta = primeiroNome 
+    ? `${saudacao}, ${primeiroNome.charAt(0).toUpperCase() + primeiroNome.slice(1).toLowerCase()}`
+    : saudacao;
+  const inicialAvatar = primeiroNome ? primeiroNome.charAt(0).toUpperCase() : '?';
 
   function recarregarDados() {
     setPerfil({
@@ -42,17 +61,19 @@ export default function Home() {
     });
     try {
       const raw = localStorage.getItem('tom-certo:favoritos');
-      if (!raw) { setFavoritos([]); setFavoritosCompletos([]); return; }
-      const parsed = JSON.parse(raw);
-      const ids    = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
-      setFavoritos(ids);
-      const itens = parsed.map((x: any) => {
-        const id       = typeof x === 'string' ? x : x.id;
-        const mockSong = buscarMusicaPorId(id);
-        if (mockSong) return { id, titulo: mockSong.titulo, artista: mockSong.artista, slug: id, isMock: true };
-        return { id, titulo: x.titulo, artista: x.artista, slug: id, isMock: false };
-      });
-      setFavoritosCompletos(itens);
+      if (!raw) { setFavoritos([]); setFavoritosCompletos([]); }
+      else {
+        const parsed = JSON.parse(raw);
+        const ids    = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
+        setFavoritos(ids);
+        const itens = parsed.map((x: any) => {
+          const id       = typeof x === 'string' ? x : x.id;
+          const mockSong = buscarMusicaPorId(id);
+          if (mockSong) return { id, titulo: mockSong.titulo, artista: mockSong.artista, slug: id, isMock: true };
+          return { id, titulo: x.titulo, artista: x.artista, slug: id, isMock: false };
+        });
+        setFavoritosCompletos(itens);
+      }
       setVisitadas(obterMusicasVisitadas(12));
     } catch { setFavoritos([]); }
   }
@@ -62,20 +83,17 @@ export default function Home() {
     return escutarStorage(recarregarDados);
   }, [pathname]);
 
-  useEffect(() => {
-    const todas = [
-      ...visitadas.map(v => ({ id: v.id, titulo: v.titulo, artista: v.artista })),
-      ...favoritosCompletos.map(f => ({ id: f.id, titulo: f.titulo || '', artista: f.artista || '' })),
-    ];
-    todas.forEach(item => {
-      if (!item.titulo) return;
-      if (CACHE_CAPAS[item.id]) { setCapas(prev => ({ ...prev, [item.id]: CACHE_CAPAS[item.id] })); return; }
-      fetch(`/api/spotify?q=${encodeURIComponent(item.titulo + ' ' + item.artista)}`)
-        .then(r => r.json())
-        .then(d => { if (d.imagem) { CACHE_CAPAS[item.id] = d.imagem; setCapas(prev => ({ ...prev, [item.id]: d.imagem })); } })
-        .catch(() => {});
+  function handleTomDetectado(nota: NomeNota, estabilidade: number) {
+    registrarDeteccao('_home', nota, estabilidade);
+    setTomDetectado(nota);
+    setGravadorAberto(false);
+    // Recarrega o perfil para mostrar o tom atualizado
+    setPerfil({
+      tom:      obterTomMaisFrequente(),
+      precisao: obterPrecisaoMedia(),
+      total:    obterTotalAnalises(),
     });
-  }, [visitadas, favoritosCompletos]);
+  }
 
   function toggleFav(id: string, titulo?: string, artista?: string) {
     try {
@@ -102,16 +120,29 @@ export default function Home() {
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--tc-gold)', letterSpacing: -0.5 }}>
               Tom<span style={{ color: 'var(--tc-txt3)', fontWeight: 500 }}>Certo</span>
             </span>
-            <p style={{ fontSize: 11, color: 'var(--tc-txt3)', marginTop: 2 }}>Boa tarde</p>
+            <p style={{ fontSize: 11, color: 'var(--tc-txt3)', marginTop: 2 }}>{saudacaoCompleta}</p>
           </div>
-          <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-            M
+          <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
+            {inicialAvatar}
           </Link>
         </div>
       </div>
 
       {/* Scroll */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 80px' }}>
+
+        {/* Toast de tom detectado */}
+        {tomDetectado && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(212,160,23,0.12)', border: '0.5px solid rgba(212,160,23,0.3)', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
+            <span style={{ fontSize: 18 }}>🎵</span>
+            <p style={{ flex: 1, fontSize: 13, color: 'var(--tc-gold)', fontWeight: 500 }}>
+              Tom detectado: <strong>{tomDetectado}</strong> — busque músicas nesse tom!
+            </p>
+            <button onClick={() => setTomDetectado(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tc-txt3)', display: 'flex', padding: 0 }}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
 
         {/* BENTO GRID */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
@@ -136,8 +167,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Detectar tom */}
-          <div onClick={() => router.push('/buscar')} style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          {/* Detectar tom → abre GravadorDeTom */}
+          <div
+            onClick={() => setGravadorAberto(true)}
+            style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer', pointerEvents: 'auto' }}
+          >
             <Mic size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)' }}>Detectar tom</p>
             <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 3 }}>Via microfone</p>
@@ -241,6 +275,29 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Modal do GravadorDeTom */}
+      {gravadorAberto && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', pointerEvents: 'auto' }}
+          onClick={e => { if (e.target === e.currentTarget) setGravadorAberto(false); }}
+        >
+          <div style={{ background: 'var(--tc-bg)', borderTop: '0.5px solid var(--tc-border)', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', pointerEvents: 'auto' }}>
+            {/* Handle */}
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--tc-border)', margin: '0 auto 20px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--tc-gold)' }}>Detectar Tom</p>
+                <p style={{ fontSize: 12, color: 'var(--tc-txt2)', marginTop: 2 }}>Cante um trecho da música por ~6 segundos</p>
+              </div>
+              <button onClick={() => setGravadorAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tc-txt3)', display: 'flex', padding: 4, flexShrink: 0 }}>
+                <X size={20} />
+              </button>
+            </div>
+            <GravadorDeTom onTomDetectado={handleTomDetectado} />
+          </div>
+        </div>
+      )}
 
       <BottomNav />
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />

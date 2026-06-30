@@ -147,9 +147,9 @@ export default function MusicaPage() {
           <button
             onClick={voltar}
             aria-label="Voltar"
-            style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-txt2)', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-txt2)', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={18} />
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dados.titulo}</p>
@@ -178,27 +178,27 @@ export default function MusicaPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
               <button
                 onClick={() => setTamanhoFonte((t) => Math.max(12, t - 1))}
                 disabled={tamanhoFonte <= 12}
-                style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte <= 12 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte <= 12 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte <= 12 ? 0.5 : 1 }}
               >
-                A-
+                A−
               </button>
-              <span style={{ fontSize: 11, color: 'var(--tc-txt3)', minWidth: 20, textAlign: 'center' }}>{tamanhoFonte}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-gold)', minWidth: 32, textAlign: 'center' }}>{tamanhoFonte}</span>
               <button
                 onClick={() => setTamanhoFonte((t) => Math.min(24, t + 1))}
                 disabled={tamanhoFonte >= 24}
-                style={{ width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte >= 24 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte >= 24 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte >= 24 ? 0.5 : 1 }}
               >
                 A+
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '4px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
               <TransBtn onClick={() => setAjusteManual((a) => a - 1)}>−</TransBtn>
-              <span style={{ fontSize: 11, color: 'var(--tc-txt2)', minWidth: 32, textAlign: 'center' }}>½ Tom</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tc-txt2)', minWidth: 38, textAlign: 'center' }}>½ Tom</span>
               <TransBtn onClick={() => setAjusteManual((a) => a + 1)}>+</TransBtn>
               {semitons !== 0 && (
                 <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }}
@@ -209,9 +209,9 @@ export default function MusicaPage() {
             {!mostrarGravador && !tomDetectado && (
               <button
                 onClick={() => setMostrarGravador(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 24, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, minWidth: 44 }}
               >
-                <Mic size={13} /> Cantar para ajustar
+                <Mic size={16} /> Cantar para ajustar
               </button>
             )}
 
@@ -255,7 +255,7 @@ function IcoBtn({ children, onClick, active, 'aria-label': label }: {
 }) {
   return (
     <button onClick={onClick} aria-label={label}
-      style={{ width: 34, height: 34, borderRadius: 10, background: active ? 'var(--tc-gold-dim)' : 'var(--tc-s1)', border: `0.5px solid ${active ? 'var(--tc-gold-border)' : 'var(--tc-border)'}`, color: active ? 'var(--tc-gold)' : 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+      style={{ width: 44, height: 44, borderRadius: 12, background: active ? 'var(--tc-gold-dim)' : 'var(--tc-s1)', border: `0.5px solid ${active ? 'var(--tc-gold-border)' : 'var(--tc-border)'}`, color: active ? 'var(--tc-gold)' : 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
       {children}
     </button>
   );
@@ -264,7 +264,7 @@ function IcoBtn({ children, onClick, active, 'aria-label': label }: {
 function TransBtn({ children, onClick }: { children: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--tc-s3)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt)', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+      style={{ width: 44, height: 44, borderRadius: 8, background: 'var(--tc-s3)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt)', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
       {children}
     </button>
   );

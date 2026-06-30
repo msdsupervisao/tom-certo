@@ -1,0 +1,20 @@
+{
+  "name": "Tom Certo",
+  "short_name": "Tom Certo",
+  "description": "Cifras no seu tom — detecte seu tom vocal e toque qualquer música",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0D0D0D",
+  "theme_color": "#D4A017",
+  "categories": ["music", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

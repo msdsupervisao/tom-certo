@@ -28,11 +28,13 @@ export async function GET(request: NextRequest) {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         Referer: 'https://www.cifraclub.com.br/',
+        'Cache-Control': 'no-cache',
       },
+      next: { revalidate: 0 },
     });
 
     if (!response.ok) {
@@ -56,56 +58,121 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** Decodifica entidades HTML comuns (incluindo acentos em português) */
+function decodeEntities(s: string): string {
+  const map: Record<string, string> = {
+    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+    '&nbsp;': ' ',
+    // vogais com acento
+    '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+    '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+    '&agrave;': 'à', '&egrave;': 'è', '&ograve;': 'ò', '&ugrave;': 'ù',
+    '&Agrave;': 'À', '&Egrave;': 'È', '&Ograve;': 'Ò', '&Ugrave;': 'Ù',
+    '&acirc;': 'â', '&ecirc;': 'ê', '&icirc;': 'î', '&ocirc;': 'ô', '&ucirc;': 'û',
+    '&Acirc;': 'Â', '&Ecirc;': 'Ê', '&Icirc;': 'Î', '&Ocirc;': 'Ô', '&Ucirc;': 'Û',
+    '&atilde;': 'ã', '&otilde;': 'õ', '&Atilde;': 'Ã', '&Otilde;': 'Õ',
+    '&ccedil;': 'ç', '&Ccedil;': 'Ç',
+    '&ntilde;': 'ñ', '&Ntilde;': 'Ñ',
+    '&auml;': 'ä', '&ouml;': 'ö', '&uuml;': 'ü',
+    '&szlig;': 'ß',
+  };
+  return s
+    .replace(/&[a-zA-Z]+;/g, (m) => map[m] ?? m)
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
+}
+
 function parsearCifra(html: string, slug: string): CifraResult | null {
   // --- Tom original ---
-  // O Cifra Club exibe: tom: E (pode ser qualquer nota, com # ou b)
-  const tomMatch = html.match(/tom:\s*<[^>]+>([A-G][#b]?)<\/[^>]+>/i)
-    || html.match(/\btom:\s*([A-G][#b]?)\b/i);
+  // Tenta múltiplos padrões para encontrar o tom
+  let tomMatch = html.match(/tom:\s*<[^>]+>([A-G][#b]?)<\/[^>]+>/i)
+    || html.match(/\btom:\s*([A-G][#b]?)\b/i)
+    || html.match(/tom[:\s]+([A-G][#b]?)\b/i)
+    || html.match(/\[tom:?\s*([A-G][#b]?)\]/i);
   const tomOriginal = tomMatch ? tomMatch[1] : 'C';
 
-  // --- Título e artista ---
+  // --- Título e artista (com decode de entidades HTML) ---
   const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
   let titulo = 'Sem título';
   let artista = 'Artista desconhecido';
 
   if (titleMatch) {
     // Formato típico: "Evidências - Chitãozinho & Xororó - Cifra Club"
-    const partes = titleMatch[1].split(' - ');
+    const titleDecoded = decodeEntities(titleMatch[1]);
+    const partes = titleDecoded.split(' - ');
     if (partes.length >= 2) {
       titulo = partes[0].trim();
-      artista = partes[1].replace('Cifra Club', '').trim();
+      // Remove "Cifra Club" do final, pega somente o nome do artista
+      artista = partes
+        .slice(1)
+        .join(' - ')
+        .replace(/\s*[-–]\s*Cifra Club\s*$/i, '')
+        .replace(/Cifra Club/i, '')
+        .trim()
+        // Normaliza & para "e" em nomes de artistas (ex: "Jorge & Mateus" → "Jorge e Mateus")
+        .replace(/\s+&\s+/g, ' e ');
     }
   }
 
   // --- Corpo da cifra ---
-  // O Cifra Club entrega a cifra dentro de uma tag <pre> ou dentro de
-  // um elemento com classe específica. Tenta as duas abordagens.
-  const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-  if (!preMatch) return null;
+  // Pega TODOS os <pre> e usa o mais longo (que é o corpo da cifra de fato).
+  // Algumas páginas têm <pre> pequenos com metadados, exemplos, etc.
+  let preMatches = [...html.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi)];
 
-  const conteudoRaw = preMatch[1];
+  // Fallback 1: Se não encontrou <pre>, tenta <code>
+  if (preMatches.length === 0) {
+    preMatches = [...html.matchAll(/<code[^>]*>([\s\S]*?)<\/code>/gi)];
+  }
 
-  // Limpa tags HTML mantendo o texto e quebras de linha
-  const conteudoLimpo = conteudoRaw
+  if (preMatches.length === 0) {
+    // Fallback 2: tentar localizar dentro de uma div com classe cifra, chord, tab, etc
+    const divMatch = html.match(/<div[^>]+class="[^"]*(?:cifra|chord|tab|corda)[^"]*"[^>]*>([\s\S]{100,}?)<\/div>/i);
+    if (divMatch) {
+      const conteudo = limparConteudoHtml(divMatch[1]);
+      if (conteudo.length < 50) return null;
+      const cifraFormatada = converterParaFormatoInterno(conteudo.split('\n'));
+      if (cifraFormatada.length < 20) return null;
+      return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
+    }
+    
+    // Fallback 3: tentar encontrar qualquer texto grande entre divs
+    const allTextMatch = html.match(/<div[^>]*>([\s\S]{200,}?)<\/div>/);
+    if (allTextMatch) {
+      const conteudo = limparConteudoHtml(allTextMatch[1]);
+      if (conteudo.length >= 100) {
+        const cifraFormatada = converterParaFormatoInterno(conteudo.split('\n'));
+        if (cifraFormatada.length >= 20) {
+          return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // Seleciona o <pre> (ou <code>) mais longo (conteúdo bruto)
+  const preMatch = preMatches.reduce((best, cur) =>
+    cur[1].length > best[1].length ? cur : best
+  );
+
+  const cifraFormatada = converterParaFormatoInterno(
+    limparConteudoHtml(preMatch[1]).split('\n')
+  );
+
+  if (cifraFormatada.length < 20) return null;
+
+  return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
+}
+
+/** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */
+function limparConteudoHtml(raw: string): string {
+  return raw
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)));
-
-  // Converte o formato do Cifra Club para o nosso formato {Acorde}
-  // O CC usa linhas de acordes (somente acordes) acima de linhas de letra.
-  // Ex:
-  //   "        E              B/D#"   ← linha de acordes
-  //   "Quando eu digo que deixei"     ← linha de letra
-  //
-  // Detecta se uma linha é de acordes: contém só tokens que são acordes válidos e espaços.
-  const linhas = conteudoLimpo.split('\n');
-  const cifraFormatada = converterParaFormatoInterno(linhas);
-
-  return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
 }
 
 // Regex para reconhecer um acorde musical válido
@@ -115,12 +182,9 @@ const REGEX_ACORDE = /^([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|dom)?(?:\d+)?(?:\
 function ehLinhaDeAcordes(linha: string): boolean {
   const trimada = linha.trim();
   if (!trimada) return false;
-  // Ignora linhas de seção como [Refrão], [Intro], etc.
   if (trimada.startsWith('[') && trimada.endsWith(']')) return false;
-  // Ignora linhas de tab (contêm | ou -)
   if (trimada.includes('|') || /^[EBGDA]\|/.test(trimada)) return false;
 
-  // Divide por espaços e testa cada token como acorde
   const tokens = trimada.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return false;
 
@@ -136,9 +200,7 @@ function ehLinhaDeTablatura(linha: string): boolean {
 function ehLinhaLixo(linha: string): boolean {
   const t = linha.trim();
   if (!t) return false;
-  // Tablatura
   if (ehLinhaDeTablatura(linha)) return true;
-  // Marcadores de tab, riff, solo, parte
   if (/^\[tab/i.test(t)) return true;
   if (/^\[riff/i.test(t)) return true;
   if (/^\[solo/i.test(t)) return true;
@@ -153,7 +215,6 @@ function converterParaFormatoInterno(linhas: string[]): string {
   const saida: string[] = [];
   let i = 0;
 
-  // Remove linhas de lixo (tab, riff, parte X de Y, etc)
   const linhasFiltradas: string[] = linhas.filter(l => !ehLinhaLixo(l));
 
   i = 0;
@@ -162,24 +223,19 @@ function converterParaFormatoInterno(linhas: string[]): string {
     const proximaLinha = linhasFiltradas[i + 1] || '';
     const trimada = linhaAtual.trim();
 
-    // Marcador de seção limpo como [Intro], [Refrão], [Verso], etc.
-    // Descarta marcadores compostos como [Riff Intro], [Tab - Intro]
     if (trimada.startsWith('[') && trimada.endsWith(']')) {
       const interno = trimada.slice(1, -1).trim().toLowerCase();
       const ehMarcadorLimpo = /^(intro|verso|coro|refrao|refrão|bridge|pre.refrao|pre-refrao|solo|final|outro|chorus|verse|hook|primeira parte|segunda parte|primeira|segunda|terceira|parte \d|estrofe)/i.test(interno);
       if (ehMarcadorLimpo) saida.push(linhaAtual);
-      // Marcadores não reconhecidos são descartados
       i += 1;
       continue;
     }
 
     if (ehLinhaDeAcordes(linhaAtual)) {
       if (proximaLinha.trim() && !ehLinhaDeAcordes(proximaLinha) && !proximaLinha.trim().startsWith('[')) {
-        // Acorde com letra logo abaixo — mescla
         saida.push(mesclarAcordesComLetra(linhaAtual, proximaLinha));
         i += 2;
       } else {
-        // Acorde sem letra — descarta
         i += 1;
       }
       continue;
@@ -195,12 +251,8 @@ function converterParaFormatoInterno(linhas: string[]): string {
 /**
  * Mescla uma linha de acordes com a linha de letra correspondente.
  * Ex: "    E         B/D#" + "Quando eu digo" → "{E}Quando eu {B/D#}digo"
- *
- * Funciona por posição de coluna: cada acorde na linha de acordes é inserido
- * na posição correspondente dentro da letra.
  */
 function mesclarAcordesComLetra(linhaAcordes: string, linhaLetra: string): string {
-  // Extrai acordes com suas posições de coluna
   const acordesPosicionados: { acorde: string; col: number }[] = [];
   const regexAcorde = /(\S+)/g;
   let m;
@@ -212,13 +264,10 @@ function mesclarAcordesComLetra(linhaAcordes: string, linhaLetra: string): strin
 
   if (acordesPosicionados.length === 0) return linhaLetra;
 
-  // Reconstrói a linha da direita para a esquerda, inserindo {Acorde} nas posições
   let resultado = linhaLetra;
-  // Ordena da direita pra esquerda para inserir sem deslocar índices anteriores
   const ordenados = [...acordesPosicionados].sort((a, b) => b.col - a.col);
 
   for (const { acorde, col } of ordenados) {
-    // Garante que o resultado tem espaços suficientes
     while (resultado.length < col) resultado += ' ';
     resultado = resultado.slice(0, col) + `{${acorde}}` + resultado.slice(col);
   }
