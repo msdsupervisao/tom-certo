@@ -80,6 +80,10 @@ export default function BuscaMusica() {
       localStorage.setItem("historico_musicas", JSON.stringify(atualizado))
     } catch {}
     // Navega para a página da música (mesmo padrão de /musica/[id])
+    if (resultado.url && !resultado.url.includes('cifraclub.com.br')) {
+      window.open(resultado.url, '_blank')
+      return
+    }
     const id = encodeURIComponent(resultado.slug)
     router.push(`/musica/${id}`)
   }

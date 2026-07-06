@@ -115,18 +115,35 @@ export default function Home() {
 
       {/* Header */}
       <div style={{ padding: '14px 16px 8px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--tc-gold)', letterSpacing: -0.5 }}>
               Tom<span style={{ color: 'var(--tc-txt3)', fontWeight: 500 }}>Certo</span>
             </span>
             <p style={{ fontSize: 11, color: 'var(--tc-txt3)', marginTop: 2 }}>{saudacaoCompleta}</p>
           </div>
-          <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
-            {inicialAvatar}
-          </Link>
+          {user ? (
+            <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
+              {inicialAvatar}
+            </Link>
+          ) : (
+            <Link href="/login" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 16px', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+              Entrar
+            </Link>
+          )}
         </div>
       </div>
+
+      {!user && (
+        <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--tc-txt2)' }}>
+            Entre para sincronizar favoritos, histórico e continuar em outro dispositivo.
+          </p>
+          <Link href="/login" style={{ padding: '10px 16px', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Entrar agora
+          </Link>
+        </div>
+      )}
 
       {/* Scroll */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 80px' }}>
