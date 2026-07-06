@@ -114,11 +114,18 @@ export const catalogoMusicas: MusicaCatalogo[] = [
   { titulo: "Estrada da Vida", artista: "Milionário e José Rico", slug: "milionario-e-jose-rico/estrada-da-vida" },
 ]
 
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+}
+
 export function buscarNoCatalogo(query: string): MusicaCatalogo[] {
-  const q = query.toLowerCase().trim()
+  const q = normalizar(query.trim())
   if (q.length < 2) return []
   return catalogoMusicas.filter(m =>
-    m.titulo.toLowerCase().includes(q) ||
-    m.artista.toLowerCase().includes(q)
+    normalizar(m.titulo).includes(q) ||
+    normalizar(m.artista).includes(q)
   ).slice(0, 8)
 }
