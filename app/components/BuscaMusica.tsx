@@ -66,6 +66,14 @@ export default function BuscaMusica() {
   function handleSelect(resultado: Resultado) {
     setAberto(false)
     setQuery("")
+
+    // Sem cifra real no CifraClub: abre a musica externamente, sem
+    // registrar no historico (nao ha pagina interna pra revisitar).
+    if (resultado.url && !resultado.url.includes('cifraclub.com.br')) {
+      window.open(resultado.url, '_blank')
+      return
+    }
+
     // Salva no histórico local (mesmo padrão do app atual)
     try {
       const historico = JSON.parse(localStorage.getItem("historico_musicas") || "[]")
@@ -79,11 +87,7 @@ export default function BuscaMusica() {
       const atualizado = [nova, ...historico.filter((m: { id: string }) => m.id !== nova.id)].slice(0, 20)
       localStorage.setItem("historico_musicas", JSON.stringify(atualizado))
     } catch {}
-    // Navega para a página da música (mesmo padrão de /musica/[id])
-    if (resultado.url && !resultado.url.includes('cifraclub.com.br')) {
-      window.open(resultado.url, '_blank')
-      return
-    }
+
     const id = encodeURIComponent(resultado.slug)
     router.push(`/musica/${id}`)
   }

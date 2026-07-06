@@ -50,12 +50,14 @@ export default function BuscarPage() {
   }
 
   function handleSelect(r: ResultadoBusca) {
-    registrarVisita(r.slug, r.titulo, r.artista);
+    // Sem cifra real no CifraClub: abre a musica externamente, sem
+    // registrar no historico (nao ha pagina interna pra revisitar).
     if (r.url && !r.url.includes('cifraclub.com.br')) {
       window.open(r.url, '_blank')
-    } else {
-      router.push(`/musica/${r.slug}`)
+      return
     }
+    registrarVisita(r.slug, r.titulo, r.artista);
+    router.push(`/musica/${r.slug}`)
   }
 
   return (
