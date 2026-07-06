@@ -121,6 +121,7 @@ export default function Home() {
               Tom<span style={{ color: 'var(--tc-txt3)', fontWeight: 500 }}>Certo</span>
             </span>
             <p style={{ fontSize: 11, color: 'var(--tc-txt3)', marginTop: 2 }}>{saudacaoCompleta}</p>
+            <p style={{ fontSize: 10, color: 'var(--tc-txt3)', opacity: 0.7, marginTop: 1 }}>Criado por Fernando Padova</p>
           </div>
           {user ? (
             <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
