@@ -1,15 +1,86 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { buscarNoCatalogo } from '@/lib/data/catalogo-musicas'
 
+interface Resultado {
+  titulo: string
+  artista: string
+  url: string
+  slug: string
+}
+
 const CACHE_TTL = 1000 * 60 * 60
-const searchCache = new Map<string, { ts: number; resultados: any[] }>()
+const searchCache = new Map<string, { ts: number; resultados: Resultado[] }>()
+
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+function slugify(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+}
+
+/** Remove sufixos tipo "(Ao Vivo)", "(Acústico)", "feat. Fulano" que o iTunes inclui
+ * no titulo mas o CifraClub normalmente nao usa no slug da versao principal. */
+function tituloBase(titulo: string): string {
+  return titulo
+    .replace(/[([][^)\]]*[)\]]/g, '')
+    .replace(/\bfeat\.?.*$/i, '')
+    .trim()
+}
+
+/** Confere se existe mesmo uma pagina de cifra nesse slug, sem seguir redirecionamentos
+ * (slugs inexistentes redirecionam para a pagina do artista em vez de dar 404 direto). */
+async function existeNoCifraClub(slug: string): Promise<boolean> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 2500)
+    const resp = await fetch(`https://www.cifraclub.com.br/${slug}/`, {
+      method: 'HEAD',
+      redirect: 'manual',
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    return resp.status === 200
+  } catch {
+    return false
+  }
+}
+
+/** Busca no iTunes e tenta confirmar a cifra real no CifraClub a partir de artista+titulo. */
+async function buscarViaItunes(q: string): Promise<Resultado[]> {
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=8&country=BR`
+  const resp = await fetch(url)
+  const data = await resp.json()
+  const items = (data.results || []) as any[]
+
+  return Promise.all(items.map(async (it) => {
+    const titulo = it.trackName || it.collectionName || it.trackCensoredName || ''
+    const artista = it.artistName || ''
+    const slugArtista = slugify(artista)
+    const candidatos = [slugify(titulo), slugify(tituloBase(titulo))].filter((s, i, arr) => s && arr.indexOf(s) === i)
+
+    for (const slugTitulo of candidatos) {
+      const slugCifraClub = `${slugArtista}/${slugTitulo}`
+      if (await existeNoCifraClub(slugCifraClub)) {
+        return { titulo, artista, url: `https://www.cifraclub.com.br/${slugCifraClub}/`, slug: slugCifraClub }
+      }
+    }
+
+    const slugFallback = `${slugArtista}/${slugify(titulo)}`
+    return { titulo, artista, url: it.trackViewUrl || it.collectionViewUrl || '', slug: slugFallback }
+  }))
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')?.trim() || ''
   const key = q.toLowerCase()
 
-  if (!q) {
+  if (q.length < 2) {
     return NextResponse.json({ resultados: [] })
   }
 
@@ -17,60 +88,6 @@ export async function GET(request: NextRequest) {
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     return NextResponse.json({ resultados: cached.resultados })
   }
-
-    try {
-      const cifraUrl = `https://www.cifraclub.com.br/busca/?q=${encodeURIComponent(q)}`
-      const resp = await fetch(cifraUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          Referer: 'https://www.cifraclub.com.br/',
-        },
-      })
-      const html = await resp.text()
-
-      const found: any[] = []
-
-      // Tenta primeiro extrair dentro de blocos óbvios (ul/li com resultados)
-      const listMatch = html.match(/<ul[^>]*class=["'][^"']*(search|result)[^"']*["'][^>]*>([\s\S]*?)<\/ul>/i)
-      const area = listMatch ? listMatch[2] : html
-
-      // Padrões múltiplos para capturar link, título e slug
-      const patterns = [
-        /<a[^>]+href="\/([^"\s>]+\/[^"\s>]+)\/"[^>]*>\s*<span[^>]*class=["'][^"']*titulo[^"']*["'][^>]*>([^<]+)<\/span>/gi,
-        /<a[^>]+href="\/([^"\s>]+\/[^"\s>]+)\/"[^>]*>\s*([^<]+?)\s*<\/a>/gi,
-        /<a[^>]+href="(https?:\/\/www\.cifraclub\.com\.br\/[^"\s>]+)"[^>]*>([^<]+)<\/a>/gi,
-      ]
-
-      for (const pat of patterns) {
-        let m: RegExpExecArray | null
-        while ((m = pat.exec(area)) !== null && found.length < 8) {
-          let slug = m[1]
-          let titulo = (m[2] || '').replace(/<[^>]+>/g, '').trim()
-          if (!titulo && typeof m[2] === 'string') titulo = m[2].trim()
-          // normaliza slug e artista
-          if (slug.startsWith('http')) {
-            // extrai caminho
-            const u = new URL(slug)
-            slug = u.pathname.replace(/^\//, '').replace(/\/$/, '')
-          }
-          const artista = slug.split('/')[0]?.replace(/-/g, ' ') || ''
-          const url = `https://www.cifraclub.com.br/${slug}/`
-          // evita duplicatas
-          if (!found.some(f => f.url === url)) {
-            found.push({ titulo: titulo || slug.split('/').pop(), artista, url, slug })
-          }
-        }
-        if (found.length > 0) break
-      }
-
-      if (found.length > 0) {
-        searchCache.set(key, { ts: Date.now(), resultados: found })
-        return NextResponse.json({ resultados: found })
-      }
-    } catch (e) {
-      // prossegue para próximo fallback
-    }
 
   const locais = buscarNoCatalogo(q)
   if (locais.length > 0) {
@@ -84,57 +101,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ resultados })
   }
 
-    // Fallback 1: tenta buscar no CifraClub (extrai links da página de busca)
-    if (q.length >= 2) {
-      try {
-        const cifraUrl = `https://www.cifraclub.com.br/busca/?q=${encodeURIComponent(q)}`
-        const resp = await fetch(cifraUrl)
-        const html = await resp.text()
-        const re = /<a[^>]+href="\/([^"\s>]+\/[^"\s>]+)\/"[^>]*>([^<]+)<\/a>/g
-        const found: any[] = []
-        let m: RegExpExecArray | null
-        while ((m = re.exec(html)) !== null && found.length < 8) {
-          const slug = m[1]
-          const titulo = m[2].trim()
-          const artista = slug.split('/')[0]?.replace(/-/g, ' ') || ''
-          found.push({ titulo, artista, url: `https://www.cifraclub.com.br/${slug}/`, slug })
-        }
-        if (found.length > 0) {
-          searchCache.set(key, { ts: Date.now(), resultados: found })
-          return NextResponse.json({ resultados: found })
-        }
-      } catch (e) {
-        // prossegue para próximo fallback
-      }
-    }
-
-  // Fallback: usa iTunes Search API quando catálogo local vazio
-  if (q.length >= 2) {
-    try {
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=8&country=BR`
-      const resp = await fetch(url)
-      const data = await resp.json()
-      const results = (data.results || []).map((it: any) => {
-        const titulo = it.trackName || it.collectionName || it.trackCensoredName || ''
-        const artista = it.artistName || ''
-        // cria slug simples: artista/titulo
-        const slug = `${(artista || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}/${(titulo || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`
-        return {
-          titulo,
-          artista,
-          url: it.trackViewUrl || it.collectionViewUrl || null,
-          slug,
-        }
-      })
-      searchCache.set(key, { ts: Date.now(), resultados: results })
-      return NextResponse.json({ resultados: results })
-    } catch (e) {
-      // se falhar, retorna vazio
-      searchCache.set(key, { ts: Date.now(), resultados: [] })
-      return NextResponse.json({ resultados: [] })
-    }
+  try {
+    const resultados = await buscarViaItunes(q)
+    searchCache.set(key, { ts: Date.now(), resultados })
+    return NextResponse.json({ resultados })
+  } catch {
+    return NextResponse.json({ resultados: [] })
   }
-
-  searchCache.set(key, { ts: Date.now(), resultados: [] })
-  return NextResponse.json({ resultados: [] })
 }
