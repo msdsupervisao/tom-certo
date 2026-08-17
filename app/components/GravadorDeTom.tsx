@@ -29,6 +29,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const [estado, setEstado] = useState<Estado>('ocioso');
   const [nivelSinal, setNivelSinal] = useState(0);
   const [avisoBaixaConfianca, setAvisoBaixaConfianca] = useState(false);
+  const [erroMicrofone, setErroMicrofone] = useState('');
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -43,6 +44,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   async function iniciarGravacao() {
     try {
       setAvisoBaixaConfianca(false);
+      setErroMicrofone('');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -70,10 +72,9 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       timeoutRef.current = setTimeout(() => {
         finalizarGravacao();
       }, DURACAO_GRAVACAO_MS);
-    } catch (erro) {
-      alert(
-        'Não foi possível acessar o microfone. Verifique as permissões do navegador.'
-      );
+    } catch {
+      setEstado('ocioso');
+      setErroMicrofone('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
     }
   }
 
@@ -168,6 +169,12 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       {estado === 'processando' && (
         <div className="py-4 text-center text-sm text-text-dim">
           Identificando o tom...
+        </div>
+      )}
+
+      {erroMicrofone && (
+        <div className="mt-3 rounded-xl bg-bad/10 p-3 text-sm text-bad">
+          {erroMicrofone}
         </div>
       )}
 

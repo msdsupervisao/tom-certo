@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X } from 'lucide-react';
+import { AlertCircle, Search, X } from 'lucide-react';
 import { registrarVisita } from '@/lib/historico-local';
 import BottomNav from '@/app/components/BottomNav';
 
@@ -19,18 +19,29 @@ export default function BuscarPage() {
   const [resultados, setResultados] = useState<ResultadoBusca[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [buscou, setBuscou] = useState(false);
+  const [erroBusca, setErroBusca] = useState('');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const buscar = useCallback(async (q: string) => {
-    if (q.length < 2) { setResultados([]); setBuscou(false); return; }
+    const termo = q.trim();
+    if (termo.length < 2) {
+      setResultados([]);
+      setBuscou(false);
+      setErroBusca('');
+      return;
+    }
     setCarregando(true);
+    setErroBusca('');
     try {
-      const res = await fetch(`/api/buscar?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}`);
+      if (!res.ok) throw new Error('Busca indisponível');
       const data = await res.json();
-      setResultados(data.resultados || []);
+      setResultados(Array.isArray(data.resultados) ? data.resultados : []);
       setBuscou(true);
     } catch {
       setResultados([]);
+      setErroBusca('Não foi possível buscar agora. Verifique sua conexão e tente novamente.');
+      setBuscou(true);
     } finally {
       setCarregando(false);
     }
@@ -47,6 +58,7 @@ export default function BuscarPage() {
     setQuery('');
     setResultados([]);
     setBuscou(false);
+    setErroBusca('');
   }
 
   function handleSelect(r: ResultadoBusca) {
@@ -122,14 +134,28 @@ export default function BuscarPage() {
           </>
         )}
 
-        {buscou && resultados.length === 0 && !carregando && (
+        {erroBusca && !carregando && (
+          <div style={{ textAlign: 'center', padding: '36px 24px', background: 'var(--tc-s1)', borderRadius: 20, border: '0.5px solid rgba(226,75,74,0.3)' }}>
+            <AlertCircle size={34} style={{ color: 'var(--tc-danger)', marginBottom: 12 }} />
+            <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Busca indisponível</p>
+            <p style={{ color: 'var(--tc-txt2)', fontSize: 13, lineHeight: 1.6 }}>{erroBusca}</p>
+            <button
+              onClick={() => buscar(query)}
+              style={{ marginTop: 16, border: 'none', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '10px 16px' }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
+        {buscou && resultados.length === 0 && !carregando && !erroBusca && (
           <div style={{ textAlign: 'center', padding: '60px 24px', background: 'var(--tc-s1)', borderRadius: 20, border: '0.5px solid var(--tc-border)' }}>
             <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Nenhuma música encontrada</p>
             <p style={{ color: 'var(--tc-txt2)', fontSize: 13 }}>Tente buscar por outro nome ou artista.</p>
           </div>
         )}
 
-        {!buscou && !carregando && (
+        {!buscou && !carregando && !erroBusca && (
           <div style={{ textAlign: 'center', padding: '60px 24px' }}>
             <Search size={48} style={{ color: 'var(--tc-txt3)', marginBottom: 12 }} />
             <p style={{ color: 'var(--tc-txt2)', fontSize: 14 }}>Digite o nome de uma música ou artista</p>

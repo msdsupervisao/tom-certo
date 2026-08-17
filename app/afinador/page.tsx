@@ -19,11 +19,23 @@ export default function AfinadorPage() {
   const rafRef          = useRef<number | null>(null);
 
   useEffect(() => {
-    iniciar();
-    return () => parar();
+    return () => encerrarAudio();
   }, []);
 
+  function encerrarAudio() {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    audioContextRef.current?.close();
+    audioContextRef.current = null;
+    analyserRef.current = null;
+  }
+
   async function iniciar() {
+    if (escutando) return;
+    setErro('');
+    setResultado(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
@@ -38,14 +50,14 @@ export default function AfinadorPage() {
       setEscutando(true);
       loop();
     } catch {
+      encerrarAudio();
+      setEscutando(false);
       setErro('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
     }
   }
 
   function parar() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    audioContextRef.current?.close();
+    encerrarAudio();
     setEscutando(false);
     setResultado(null);
   }
@@ -90,6 +102,9 @@ export default function AfinadorPage() {
         {erro ? (
           <div style={{ background: 'rgba(226,75,74,0.1)', border: '0.5px solid rgba(226,75,74,0.3)', borderRadius: 16, padding: '20px 24px', textAlign: 'center' }}>
             <p style={{ color: 'var(--tc-danger)', fontSize: 14, lineHeight: 1.6 }}>{erro}</p>
+            <button onClick={iniciar} style={{ marginTop: 16, border: 'none', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '10px 16px' }}>
+              Tentar novamente
+            </button>
           </div>
         ) : !resultado ? (
           <>
@@ -103,8 +118,11 @@ export default function AfinadorPage() {
               </svg>
             </div>
             <p style={{ fontSize: 14, color: 'var(--tc-txt2)', textAlign: 'center' }}>
-              {escutando ? 'Toque uma corda do violão...' : 'Iniciando microfone...'}
+              {escutando ? 'Toque uma corda do violão...' : 'Toque em iniciar para liberar o microfone.'}
             </p>
+            <button onClick={escutando ? parar : iniciar} style={{ marginTop: 18, border: 'none', borderRadius: 999, background: escutando ? 'var(--tc-s2)' : 'var(--tc-gold)', color: escutando ? 'var(--tc-txt)' : '#0D0D0D', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '11px 18px' }}>
+              {escutando ? 'Parar microfone' : 'Iniciar afinador'}
+            </button>
           </>
         ) : (
           <>
@@ -142,6 +160,9 @@ export default function AfinadorPage() {
                   ? 'Grave — aperte um pouco'
                   : 'Aguda — afrouxe um pouco'}
             </p>
+            <button onClick={parar} style={{ marginTop: 18, border: 'none', borderRadius: 999, background: 'var(--tc-s2)', color: 'var(--tc-txt)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '11px 18px' }}>
+              Parar microfone
+            </button>
           </>
         )}
 

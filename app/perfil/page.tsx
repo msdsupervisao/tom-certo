@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { obterTomMaisFrequente, obterTotalAnalises, obterMusicasVisitadas } from '@/lib/historico-local';
-import { SlidersHorizontal, HelpCircle, LogOut, ChevronRight, Music, Sun, Moon } from 'lucide-react';
+import { SlidersHorizontal, LogOut, ChevronRight, Music, Sun, Moon } from 'lucide-react';
 import BottomNav from '@/app/components/BottomNav';
 
 export default function PerfilPage() {
@@ -86,11 +86,10 @@ export default function PerfilPage() {
         </div>
 
         <Divider label="Conta" />
-        <MenuItem icon={<HelpCircle size={18} />} label="Ajuda" onClick={() => {}} />
         {user ? (
           <MenuItem icon={<LogOut size={18} />} label={saindo ? 'Saindo...' : 'Sair da conta'} onClick={handleSair} danger />
         ) : (
-          <MenuItem icon={<LogOut size={18} />} label="Entrar" onClick={() => router.push('/')} />
+          <MenuItem icon={<LogOut size={18} />} label="Entrar" onClick={() => router.push('/login')} />
         )}
       </div>
 

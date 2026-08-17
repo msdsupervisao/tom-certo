@@ -122,10 +122,6 @@ export default function Home() {
             </span>
             <p style={{ fontSize: 11, color: 'var(--tc-txt3)', marginTop: 2 }}>{saudacaoCompleta}</p>
           </div>
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-            <p style={{ margin: 0, fontSize: 10, color: 'var(--tc-txt3)', opacity: 0.7 }}>Criado por</p>
-            <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800, color: 'var(--tc-gold)', letterSpacing: -0.2 }}>Fernando Padova</p>
-          </div>
           {user ? (
             <Link href="/perfil" style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-gold)', fontSize: 12, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
               {inicialAvatar}
@@ -139,13 +135,10 @@ export default function Home() {
       </div>
 
       {!user && (
-        <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <div style={{ padding: '0 16px 12px' }}>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--tc-txt2)' }}>
             Entre para sincronizar favoritos, histórico e continuar em outro dispositivo.
           </p>
-          <Link href="/login" style={{ padding: '10px 16px', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            Entrar agora
-          </Link>
         </div>
       )}
 
@@ -169,21 +162,21 @@ export default function Home() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
 
           {/* Hero tom vocal */}
-          <div onClick={() => router.push('/buscar')} style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => { if (temTom) router.push('/buscar'); else setGravadorAberto(true); }} style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <p style={{ fontSize: 10, color: 'var(--tc-gold)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Mic size={12} /> Tom vocal detectado
+              <Mic size={12} /> {temTom ? 'Tom vocal detectado' : 'Encontre seu tom vocal'}
             </p>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-              <div>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1, letterSpacing: -1 }}>
-                  {temTom ? perfil!.tom : '—'}
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: temTom ? 44 : 28, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1.05, letterSpacing: -1 }}>
+                  {temTom ? perfil!.tom : 'Detecte seu tom'}
                 </p>
                 <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 4 }}>
-                  {temTom ? `${perfil!.total} análises · ${perfil!.precisao}% precisão` : 'Cante para detectar seu tom'}
+                  {temTom ? `${perfil!.total} análises · ${perfil!.precisao ?? 0}% precisão` : 'Cante alguns segundos para ajustar cifras ao seu alcance'}
                 </p>
               </div>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--tc-gold)', color: '#0D0D0D', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 30 }}>
-                <Music size={13} /> Buscar cifras
+                {temTom ? <Music size={13} /> : <Mic size={13} />} {temTom ? 'Buscar cifras' : 'Detectar tom'}
               </span>
             </div>
           </div>

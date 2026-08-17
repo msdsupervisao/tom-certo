@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { registrarVisita } from "@/lib/historico-local"
 
 interface Resultado {
   titulo: string
@@ -74,22 +75,8 @@ export default function BuscaMusica() {
       return
     }
 
-    // Salva no histórico local (mesmo padrão do app atual)
-    try {
-      const historico = JSON.parse(localStorage.getItem("historico_musicas") || "[]")
-      const nova = {
-        id: resultado.slug,
-        titulo: resultado.titulo,
-        artista: resultado.artista,
-        url: resultado.url,
-        acessadaEm: new Date().toISOString(),
-      }
-      const atualizado = [nova, ...historico.filter((m: { id: string }) => m.id !== nova.id)].slice(0, 20)
-      localStorage.setItem("historico_musicas", JSON.stringify(atualizado))
-    } catch {}
-
-    const id = encodeURIComponent(resultado.slug)
-    router.push(`/musica/${id}`)
+    registrarVisita(resultado.slug, resultado.titulo, resultado.artista)
+    router.push(`/musica/${resultado.slug}`)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

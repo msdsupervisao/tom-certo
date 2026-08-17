@@ -32,7 +32,10 @@ export default function BottomNav() {
       }}
     >
       {TABS.map((tab) => {
-        const active = pathname === tab.href;
+        const active =
+          pathname === tab.href ||
+          (tab.href !== '/' && pathname.startsWith(`${tab.href}/`)) ||
+          (tab.href === '/buscar' && pathname.startsWith('/musica'));
         const Icon = tab.icon;
         return (
           <Link
