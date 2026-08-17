@@ -54,7 +54,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(resultado);
   } catch (erro) {
     console.error('[cifra] Erro ao buscar:', erro);
-    return NextResponse.json({ erro: 'Falha ao carregar cifra' }, { status: 500 });
+    return NextResponse.json(
+      { erro: 'Não foi possível acessar o Cifra Club agora. Tente novamente em alguns segundos.' },
+      { status: 503 }
+    );
   }
 }
 
@@ -77,8 +80,9 @@ function decodeEntities(s: string): string {
     '&szlig;': 'ß',
   };
   return s
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)))
     .replace(/&[a-zA-Z]+;/g, (m) => map[m] ?? m)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
 }
 
 function parsearCifra(html: string, slug: string): CifraResult | null {
@@ -165,14 +169,11 @@ function parsearCifra(html: string, slug: string): CifraResult | null {
 
 /** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */
 function limparConteudoHtml(raw: string): string {
-  return raw
+  const semTags = raw
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
+    .replace(/<[^>]+>/g, '');
+
+  return decodeEntities(semTags);
 }
 
 // Regex para reconhecer um acorde musical válido

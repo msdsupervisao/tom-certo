@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { obterTomMaisFrequente, obterTotalAnalises, obterMusicasVisitadas } from '@/lib/historico-local';
-import { SlidersHorizontal, LogOut, ChevronRight, Music, Sun, Moon } from 'lucide-react';
+import { SlidersHorizontal, Info, LogOut, ChevronRight, Music, Sun, Moon } from 'lucide-react';
 import BottomNav from '@/app/components/BottomNav';
 
 export default function PerfilPage() {
@@ -65,6 +65,7 @@ export default function PerfilPage() {
         <Divider label="Configurações" />
         <MenuItem icon={<SlidersHorizontal size={18} />} label="Afinador" onClick={() => router.push('/afinador')} />
         <MenuItem icon={<Music size={18} />} label="Minhas favoritas" onClick={() => router.push('/favoritas')} />
+        <MenuItem icon={<Info size={18} />} label="Sobre o TomCerto" onClick={() => router.push('/sobre')} />
 
         {/* Toggle de tema */}
         <div

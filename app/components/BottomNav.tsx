@@ -1,18 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, Search, Heart, User } from 'lucide-react';
 
 const TABS = [
-  { href: '/', icon: Home, label: 'Início' },
-  { href: '/buscar', icon: Search, label: 'Buscar' },
-  { href: '/favoritas', icon: Heart, label: 'Favoritas' },
-  { href: '/perfil', icon: User, label: 'Perfil' },
+  { href: '/', icon: Home, label: 'Início', id: 'home' },
+  { href: '/#buscar', icon: Search, label: 'Buscar', id: 'buscar' },
+  { href: '/favoritas', icon: Heart, label: 'Favoritas', id: 'favoritas' },
+  { href: '/perfil', icon: User, label: 'Perfil', id: 'perfil' },
 ] as const;
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [hash, setHash] = useState('');
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+    return () => window.removeEventListener('hashchange', syncHash);
+  }, [pathname]);
 
   return (
     <nav
@@ -24,8 +33,8 @@ export default function BottomNav() {
         width: '100%',
         maxWidth: 860,
         display: 'flex',
-        background: 'rgba(20,20,20,0.97)',
-        borderTop: '0.5px solid rgba(255,255,255,0.07)',
+        background: 'var(--tc-nav-bg)',
+        borderTop: '0.5px solid var(--tc-nav-border)',
         paddingBottom: 'env(safe-area-inset-bottom, 18px)',
         paddingTop: 10,
         zIndex: 100,
@@ -33,9 +42,10 @@ export default function BottomNav() {
     >
       {TABS.map((tab) => {
         const active =
-          pathname === tab.href ||
-          (tab.href !== '/' && pathname.startsWith(`${tab.href}/`)) ||
-          (tab.href === '/buscar' && pathname.startsWith('/musica'));
+          (tab.id === 'home' && pathname === '/' && hash !== '#buscar') ||
+          (tab.id === 'buscar' && ((pathname === '/' && hash === '#buscar') || pathname === '/buscar' || pathname.startsWith('/musica'))) ||
+          (tab.id === 'favoritas' && (pathname === '/favoritas' || pathname.startsWith('/favoritas/'))) ||
+          (tab.id === 'perfil' && (pathname === '/perfil' || pathname.startsWith('/perfil/') || pathname.startsWith('/sobre')));
         const Icon = tab.icon;
         return (
           <Link
@@ -47,14 +57,14 @@ export default function BottomNav() {
               flexDirection: 'column',
               alignItems: 'center',
               gap: 4,
-              color: active ? 'var(--tc-gold)' : 'var(--tc-txt3)',
+              color: active ? 'var(--tc-gold)' : 'var(--tc-nav-muted)',
               textDecoration: 'none',
             }}
           >
             <Icon
               size={22}
               strokeWidth={1.6}
-              fill={tab.href === '/favoritas' && active ? 'currentColor' : 'none'}
+              fill={tab.id === 'favoritas' && active ? 'currentColor' : 'none'}
             />
             <span style={{ fontSize: 10, fontWeight: 500 }}>{tab.label}</span>
           </Link>

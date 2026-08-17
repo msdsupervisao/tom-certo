@@ -31,6 +31,19 @@ function tituloBase(titulo: string): string {
     .trim()
 }
 
+function deduplicarResultados(resultados: Resultado[]): Resultado[] {
+  const vistos = new Set<string>()
+  const unicos: Resultado[] = []
+
+  for (const resultado of resultados) {
+    if (!resultado.slug || vistos.has(resultado.slug)) continue
+    vistos.add(resultado.slug)
+    unicos.push(resultado)
+  }
+
+  return unicos.slice(0, 8)
+}
+
 /** Confere se existe mesmo uma pagina de cifra nesse slug, sem seguir redirecionamentos
  * (slugs inexistentes redirecionam para a pagina do artista em vez de dar 404 direto). */
 async function existeNoCifraClub(slug: string): Promise<boolean> {
@@ -54,10 +67,13 @@ async function existeNoCifraClub(slug: string): Promise<boolean> {
 async function buscarViaItunes(q: string): Promise<Resultado[]> {
   const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=8&country=BR`
   const resp = await fetch(url)
+  if (!resp.ok) {
+    throw new Error(`iTunes retornou ${resp.status}`)
+  }
   const data = await resp.json()
   const items = (data.results || []) as any[]
 
-  return Promise.all(items.map(async (it) => {
+  const resultados = await Promise.all(items.map(async (it) => {
     const titulo = it.trackName || it.collectionName || it.trackCensoredName || ''
     const artista = it.artistName || ''
     const slugArtista = slugify(artista)
@@ -70,9 +86,10 @@ async function buscarViaItunes(q: string): Promise<Resultado[]> {
       }
     }
 
-    const slugFallback = `${slugArtista}/${slugify(titulo)}`
-    return { titulo, artista, url: it.trackViewUrl || it.collectionViewUrl || '', slug: slugFallback }
+    return null
   }))
+
+  return deduplicarResultados(resultados.filter(Boolean) as Resultado[])
 }
 
 export async function GET(request: NextRequest) {
@@ -105,7 +122,14 @@ export async function GET(request: NextRequest) {
     const resultados = await buscarViaItunes(q)
     searchCache.set(key, { ts: Date.now(), resultados })
     return NextResponse.json({ resultados })
-  } catch {
-    return NextResponse.json({ resultados: [] })
+  } catch (erro) {
+    console.warn('[buscar] Fonte externa indisponível:', erro)
+    return NextResponse.json(
+      {
+        resultados: [],
+        erro: 'A busca externa está indisponível agora. Tente novamente em alguns segundos.',
+      },
+      { status: 503 }
+    )
   }
 }

@@ -34,13 +34,13 @@ export default function BuscarPage() {
     setErroBusca('');
     try {
       const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}`);
-      if (!res.ok) throw new Error('Busca indisponível');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || 'Busca indisponível');
       setResultados(Array.isArray(data.resultados) ? data.resultados : []);
       setBuscou(true);
-    } catch {
+    } catch (erro) {
       setResultados([]);
-      setErroBusca('Não foi possível buscar agora. Verifique sua conexão e tente novamente.');
+      setErroBusca(erro instanceof Error ? erro.message : 'Não foi possível buscar agora. Verifique sua conexão e tente novamente.');
       setBuscou(true);
     } finally {
       setCarregando(false);

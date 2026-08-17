@@ -46,7 +46,7 @@ export default function NotFound() {
         }}>
           Voltar ao início
         </Link>
-        <Link href="/buscar" style={{
+        <Link href="/#buscar" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--tc-s1)', color: 'var(--tc-txt)',
           border: '0.5px solid var(--tc-border)',

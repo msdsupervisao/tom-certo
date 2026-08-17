@@ -10,6 +10,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: dark;
   /* --- Novo design system --- */
   --tc-bg:          #0D0D0D;
   --tc-s1:          #1A1A1A;
@@ -21,8 +22,11 @@
   --tc-gold-text:   #7A4F0A;
   --tc-txt:         #F0EDE6;
   --tc-txt2:        #A09890;
-  --tc-txt3:        #5A5450;
+  --tc-txt3:        #8A8178;
   --tc-border:      rgba(255, 255, 255, 0.07);
+  --tc-nav-bg:      rgba(20, 20, 20, 0.97);
+  --tc-nav-border:  rgba(255, 255, 255, 0.07);
+  --tc-nav-muted:   #A09890;
   --tc-paper:       #F5F0E8;
   --tc-paper2:      #EDE8DC;
   --tc-paper-border:#D4C9B0;
@@ -63,6 +67,7 @@
 }
 
 [data-theme='light'] {
+  color-scheme: light;
   --tc-bg:          #F5F0E8;
   --tc-s1:          #EDE8DC;
   --tc-s2:          #E5DFD0;
@@ -71,6 +76,9 @@
   --tc-txt2:        #4A4238;
   --tc-txt3:        #8A7D6E;
   --tc-border:      rgba(0,0,0,0.08);
+  --tc-nav-bg:      rgba(245, 240, 232, 0.97);
+  --tc-nav-border:  rgba(0,0,0,0.10);
+  --tc-nav-muted:   #6B625A;
   --bg:             var(--tc-bg);
   --bg-soft:        var(--tc-s1);
   --panel:          var(--tc-s2);

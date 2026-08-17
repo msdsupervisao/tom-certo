@@ -125,6 +125,12 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
         </button>
         <div style={{ borderRadius: 16, border: '1px solid rgba(226,75,74,0.3)', background: 'var(--tc-s1)', padding: 24, textAlign: 'center' }}>
           <p style={{ color: 'var(--tc-danger)' }}>{erro || 'Cifra não encontrada.'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: 16, border: 'none', borderRadius: 999, background: 'var(--tc-gold)', color: '#0D0D0D', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '10px 16px' }}
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );

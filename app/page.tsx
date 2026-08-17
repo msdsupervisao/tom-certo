@@ -1,19 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
 import {
   obterTomMaisFrequente, obterPrecisaoMedia, obterTotalAnalises,
-  obterMusicasVisitadas, MusicaVisitada, registrarDeteccao,
+  obterMusicasVisitadas, MusicaVisitada, registrarDeteccao, registrarVisita,
 } from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import BottomNav from '@/app/components/BottomNav';
-import { Mic, SlidersHorizontal, Search, Music, Heart, X } from 'lucide-react';
+import { AlertCircle, Mic, SlidersHorizontal, Search, Music, Heart, X } from 'lucide-react';
 import type { NomeNota } from '@/lib/music-theory';
 
 const CACHE_CAPAS: Record<string, string> = {};
@@ -24,6 +24,13 @@ interface FavItem {
   artista?: string;
   slug: string;
   isMock: boolean;
+}
+
+interface ResultadoBusca {
+  titulo: string;
+  artista: string;
+  url: string;
+  slug: string;
 }
 
 function saudacaoDoDia(): string {
@@ -43,6 +50,14 @@ export default function Home() {
   const [favoritos, setFavoritos]                   = useState<string[]>([]);
   const [favoritosCompletos, setFavoritosCompletos] = useState<FavItem[]>([]);
   const [visitadas, setVisitadas]                   = useState<MusicaVisitada[]>([]);
+  const [buscaQuery, setBuscaQuery]                 = useState('');
+  const [resultadosBusca, setResultadosBusca]       = useState<ResultadoBusca[]>([]);
+  const [buscaCarregando, setBuscaCarregando]       = useState(false);
+  const [buscaFeita, setBuscaFeita]                 = useState(false);
+  const [buscaErro, setBuscaErro]                   = useState('');
+  const buscaInputRef = useRef<HTMLInputElement>(null);
+  const buscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buscaSeqRef = useRef(0);
 
   const primeiroNome = user?.user_metadata?.full_name?.trim()?.split(' ')[0]
     || user?.email?.split('@')[0]?.replace(/[\d_.-]/g, '')
@@ -83,6 +98,43 @@ export default function Home() {
     return escutarStorage(recarregarDados);
   }, [pathname]);
 
+  useEffect(() => {
+    return () => {
+      if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
+    };
+  }, []);
+
+  const buscarNaHome = useCallback(async (q: string) => {
+    const termo = q.trim();
+    const seq = ++buscaSeqRef.current;
+
+    if (termo.length < 2) {
+      setResultadosBusca([]);
+      setBuscaFeita(false);
+      setBuscaErro('');
+      setBuscaCarregando(false);
+      return;
+    }
+
+    setBuscaCarregando(true);
+    setBuscaErro('');
+    try {
+      const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}`);
+      const data = await res.json();
+      if (seq !== buscaSeqRef.current) return;
+      if (!res.ok) throw new Error(data.erro || 'Busca indisponível');
+      setResultadosBusca(Array.isArray(data.resultados) ? data.resultados : []);
+      setBuscaFeita(true);
+    } catch (erro) {
+      if (seq !== buscaSeqRef.current) return;
+      setResultadosBusca([]);
+      setBuscaErro(erro instanceof Error ? erro.message : 'Não foi possível buscar agora.');
+      setBuscaFeita(true);
+    } finally {
+      if (seq === buscaSeqRef.current) setBuscaCarregando(false);
+    }
+  }, []);
+
   function handleTomDetectado(nota: NomeNota, estabilidade: number) {
     registrarDeteccao('_home', nota, estabilidade);
     setTomDetectado(nota);
@@ -105,6 +157,47 @@ export default function Home() {
       salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
       setFavoritos(nova.map((x: any) => x.id));
     } catch {}
+  }
+
+  function focarBusca() {
+    buscaInputRef.current?.focus();
+    buscaInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function handleBuscaChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const valor = event.target.value;
+    const termo = valor.trim();
+    setBuscaQuery(valor);
+    buscaSeqRef.current += 1;
+    if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
+
+    if (termo.length < 2) {
+      setResultadosBusca([]);
+      setBuscaFeita(false);
+      setBuscaErro('');
+      setBuscaCarregando(false);
+      return;
+    }
+
+    setBuscaCarregando(true);
+    setBuscaErro('');
+    buscaTimerRef.current = setTimeout(() => buscarNaHome(valor), 300);
+  }
+
+  function limparBusca() {
+    if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
+    buscaSeqRef.current += 1;
+    setBuscaQuery('');
+    setResultadosBusca([]);
+    setBuscaFeita(false);
+    setBuscaErro('');
+    setBuscaCarregando(false);
+    buscaInputRef.current?.focus();
+  }
+
+  function abrirResultadoBusca(resultado: ResultadoBusca) {
+    registrarVisita(resultado.slug, resultado.titulo, resultado.artista);
+    router.push(`/musica/${resultado.slug}`);
   }
 
   const temTom      = perfil && perfil.total > 0 && perfil.tom;
@@ -162,7 +255,7 @@ export default function Home() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
 
           {/* Hero tom vocal */}
-          <div onClick={() => { if (temTom) router.push('/buscar'); else setGravadorAberto(true); }} style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => { if (temTom) focarBusca(); else setGravadorAberto(true); }} style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <p style={{ fontSize: 10, color: 'var(--tc-gold)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Mic size={12} /> {temTom ? 'Tom vocal detectado' : 'Encontre seu tom vocal'}
             </p>
@@ -184,7 +277,7 @@ export default function Home() {
           {/* Detectar tom → abre GravadorDeTom */}
           <div
             onClick={() => setGravadorAberto(true)}
-            style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer', pointerEvents: 'auto' }}
+            style={{ background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 18, padding: 16, cursor: 'pointer', pointerEvents: 'auto' }}
           >
             <Mic size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)' }}>Detectar tom</p>
@@ -192,7 +285,7 @@ export default function Home() {
           </div>
 
           {/* Afinador */}
-          <div onClick={() => setAfinadorAberto(true)} style={{ background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => setAfinadorAberto(true)} style={{ background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <SlidersHorizontal size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)' }}>Afinador</p>
             <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 3 }}>Tempo real</p>
@@ -227,11 +320,73 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Busca rápida */}
-        <div onClick={() => router.push('/buscar')} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tc-s1)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 14px', marginBottom: 14, cursor: 'pointer' }}>
-          <Search size={18} style={{ color: 'var(--tc-txt3)' }} />
-          <span style={{ fontSize: 14, color: 'var(--tc-txt3)' }}>Buscar música ou artista...</span>
-        </div>
+        {/* Busca na home */}
+        <section id="buscar" style={{ marginBottom: 14, scrollMarginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: '10px 14px' }}>
+            <Search size={18} style={{ color: 'var(--tc-txt3)', flexShrink: 0 }} />
+            <input
+              ref={buscaInputRef}
+              value={buscaQuery}
+              onChange={handleBuscaChange}
+              placeholder="Buscar música ou artista..."
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--tc-txt)', fontSize: 14, fontFamily: 'var(--font-ui)', outline: 'none' }}
+            />
+            {buscaCarregando && (
+              <div style={{ width: 16, height: 16, border: '2px solid var(--tc-border)', borderTopColor: 'var(--tc-gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+            )}
+            {buscaQuery && !buscaCarregando && (
+              <button onClick={limparBusca} aria-label="Limpar busca" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tc-txt3)', display: 'flex', padding: 0 }}>
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {buscaQuery.trim().length === 1 && (
+            <p style={{ margin: '8px 2px 0', color: 'var(--tc-txt3)', fontSize: 11 }}>Digite pelo menos 2 letras.</p>
+          )}
+
+          {buscaErro && !buscaCarregando && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, background: 'var(--tc-s1)', border: '0.5px solid rgba(226,75,74,0.35)', borderRadius: 12, padding: '12px 14px' }}>
+              <AlertCircle size={17} style={{ color: 'var(--tc-danger)', flexShrink: 0, marginTop: 1 }} />
+              <p style={{ margin: 0, color: 'var(--tc-txt2)', fontSize: 12, lineHeight: 1.5 }}>{buscaErro}</p>
+            </div>
+          )}
+
+          {resultadosBusca.length > 0 && !buscaErro && (
+            <div style={{ marginTop: 10 }}>
+              <StripLabel label="Resultados relevantes" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {resultadosBusca.map((resultado, index) => (
+                  <button
+                    key={`${resultado.slug}-${index}`}
+                    onClick={() => abrirResultadoBusca(resultado)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', color: 'var(--tc-txt)' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(212,160,23,0.3)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--tc-border)')}
+                  >
+                    <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(212,160,23,0.12)', color: 'var(--tc-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Music size={16} />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.titulo}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--tc-txt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.artista}</p>
+                    </span>
+                    <span style={{ flexShrink: 0, color: index === 0 ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {index === 0 ? 'Mais relevante' : `#${index + 1}`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {buscaFeita && !buscaCarregando && !buscaErro && resultadosBusca.length === 0 && buscaQuery.trim().length >= 2 && (
+            <div style={{ textAlign: 'center', marginTop: 10, padding: '24px 18px', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 14 }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--tc-txt)' }}>Nenhuma música encontrada</p>
+              <p style={{ margin: '5px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>Tente outro nome de música ou artista.</p>
+            </div>
+          )}
+        </section>
 
         {/* Favoritas */}
         {favoritosCompletos.length > 0 && (
@@ -282,12 +437,16 @@ export default function Home() {
         )}
 
         {visitadas.length === 0 && favoritosCompletos.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--tc-s1)', borderRadius: 20, border: '0.5px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--tc-s1)', borderRadius: 20, border: '0.5px solid var(--tc-border)' }}>
             <Music size={48} style={{ color: 'var(--tc-txt3)', marginBottom: 12 }} />
             <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Nenhuma música ainda</p>
             <p style={{ color: 'var(--tc-txt2)', fontSize: 13, lineHeight: 1.6 }}>Busque uma música acima para começar.</p>
           </div>
         )}
+
+        <Link href="/sobre" style={{ display: 'block', textAlign: 'center', marginTop: 18, color: 'var(--tc-txt3)', fontSize: 11, textDecoration: 'none' }}>
+          TomCerto criado por <span style={{ color: 'var(--tc-gold)', fontWeight: 700 }}>Fernando Padova</span>
+        </Link>
       </div>
 
       {/* Modal do GravadorDeTom */}
