@@ -14,7 +14,16 @@ import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import BottomNav from '@/app/components/BottomNav';
 import Text3DFlip from '@/app/components/Text3DFlip';
+import Magnetic from '@/app/components/Magnetic';
 import { AlertCircle, Mic, SlidersHorizontal, Search, Music, Heart, X } from 'lucide-react';
+
+/** Move o brilho radial (.tc-glow) para a posição do cursor sobre o card. */
+function glowMove(e: React.MouseEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--gx', `${e.clientX - r.left}px`);
+  el.style.setProperty('--gy', `${e.clientY - r.top}px`);
+}
 import type { NomeNota } from '@/lib/music-theory';
 
 const CACHE_CAPAS: Record<string, string> = {};
@@ -320,34 +329,43 @@ export default function Home() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
 
           {/* Hero tom vocal */}
-          <div onClick={() => { if (temTom) focarBusca(); else setGravadorAberto(true); }} style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => { if (temTom) focarBusca(); else setGravadorAberto(true); }} onMouseMove={glowMove} className="tc-glow tc-lift tc-press" style={{ gridColumn: '1 / -1', background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <p style={{ fontSize: 10, color: 'var(--tc-gold)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Mic size={12} /> {temTom ? 'Tom vocal detectado' : 'Encontre seu tom vocal'}
             </p>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: temTom ? 44 : 28, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1.05, letterSpacing: 0 }}>
-                  {temTom ? perfil!.tom : (
-                    <Text3DFlip
-                      text="Detecte seu tom"
-                      color="var(--tc-txt)"
-                      flipColor="var(--tc-gold)"
-                    />
-                  )}
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1.05, letterSpacing: 0 }}>
+                  <Text3DFlip
+                    text="Detecte seu tom"
+                    color="var(--tc-txt)"
+                    flipColor="var(--tc-gold)"
+                  />
                 </p>
                 <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 4 }}>
                   {temTom ? `${perfil!.total} análises · ${perfil!.precisao ?? 0}% precisão` : 'Cante alguns segundos para ajustar cifras ao seu alcance'}
                 </p>
               </div>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--tc-gold)', color: '#0D0D0D', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 30 }}>
-                {temTom ? <Music size={13} /> : <Mic size={13} />} {temTom ? 'Buscar cifras' : 'Detectar tom'}
-              </span>
+              {temTom ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, background: 'rgba(212,160,23,0.12)', border: '1px solid rgba(212,160,23,0.3)', borderRadius: 14, padding: '6px 16px', minWidth: 64 }}>
+                  <span style={{ fontSize: 8, color: 'var(--tc-gold)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Seu tom</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 40, fontWeight: 700, color: 'var(--tc-gold)', lineHeight: 1 }}>{perfil!.tom}</span>
+                </div>
+              ) : (
+                <Magnetic style={{ flexShrink: 0 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--tc-gold)', color: '#0D0D0D', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 30 }}>
+                    <Mic size={13} /> Detectar tom
+                  </span>
+                </Magnetic>
+              )}
             </div>
           </div>
 
           {/* Detectar tom → abre GravadorDeTom */}
           <div
             onClick={() => setGravadorAberto(true)}
+            onMouseMove={glowMove}
+            className="tc-glow tc-lift tc-press"
             style={{ background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 18, padding: 16, cursor: 'pointer', pointerEvents: 'auto' }}
           >
             <Mic size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
@@ -356,7 +374,7 @@ export default function Home() {
           </div>
 
           {/* Afinador */}
-          <div onClick={() => setAfinadorAberto(true)} style={{ background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
+          <div onClick={() => setAfinadorAberto(true)} onMouseMove={glowMove} className="tc-glow tc-lift tc-press" style={{ background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 18, padding: 16, cursor: 'pointer' }}>
             <SlidersHorizontal size={26} style={{ color: 'var(--tc-gold)', marginBottom: 8 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)' }}>Afinador</p>
             <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 3 }}>Tempo real</p>
@@ -378,7 +396,7 @@ export default function Home() {
           </div>
 
           {/* Última sessão */}
-          <div onClick={() => ultimaVisitada && router.push(`/musica/${ultimaVisitada.id}`)} style={{ background: 'rgba(212,160,23,0.06)', border: '0.5px solid rgba(212,160,23,0.2)', borderRadius: 18, padding: 16, cursor: ultimaVisitada ? 'pointer' : 'default' }}>
+          <div onClick={() => ultimaVisitada && router.push(`/musica/${ultimaVisitada.id}`)} onMouseMove={ultimaVisitada ? glowMove : undefined} className={ultimaVisitada ? 'tc-glow tc-lift tc-press' : undefined} style={{ background: 'rgba(212,160,23,0.06)', border: '0.5px solid rgba(212,160,23,0.2)', borderRadius: 18, padding: 16, cursor: ultimaVisitada ? 'pointer' : 'default' }}>
             <p style={{ fontSize: 10, color: 'var(--tc-gold)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Última sessão</p>
             {ultimaVisitada ? (
               <>
@@ -400,6 +418,7 @@ export default function Home() {
                 <button
                   key={modo}
                   onClick={() => trocarModoBusca(modo)}
+                  className="tc-press"
                   style={{ border: 'none', borderRadius: 9, background: ativo ? 'var(--tc-gold)' : 'transparent', color: ativo ? '#0D0D0D' : 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '9px 10px' }}
                 >
                   {modo === 'musicas' ? 'Músicas' : 'Artistas'}
@@ -467,6 +486,7 @@ export default function Home() {
                     <button
                       key={artista.slug}
                       onClick={() => selecionarArtista(artista)}
+                      className="tc-lift tc-press"
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: ativo ? 'rgba(212,160,23,0.12)' : 'var(--tc-s1)', border: ativo ? '0.5px solid rgba(212,160,23,0.35)' : '0.5px solid var(--tc-border)', borderRadius: 12, padding: '10px 12px', cursor: 'pointer', color: 'var(--tc-txt)' }}
                     >
                       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700 }}>{artista.nome}</span>
@@ -486,9 +506,8 @@ export default function Home() {
                   <button
                     key={`${resultado.slug}-${index}`}
                     onClick={() => abrirResultadoBusca(resultado)}
+                    className="tc-lift tc-press"
                     style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', color: 'var(--tc-txt)' }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(212,160,23,0.3)')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--tc-border)')}
                   >
                     <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(212,160,23,0.12)', color: 'var(--tc-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Music size={16} />
@@ -616,7 +635,7 @@ function StripLabel({ label }: { label: string }) {
 
 function MusicaRow({ href, titulo, artista, rightSlot }: { href: string; titulo: string; artista: string; rightSlot?: React.ReactNode }) {
   return (
-    <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, textDecoration: 'none' }}>
+    <Link href={href} className="tc-lift tc-press" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, textDecoration: 'none' }}>
       <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--tc-gold)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titulo}</p>

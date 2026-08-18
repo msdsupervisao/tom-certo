@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#D4A017" />
         <meta name="apple-mobile-web-app-title" content="Tom Certo" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <style>{`
+        <style dangerouslySetInnerHTML={{ __html: `
           :root {
             color-scheme: dark;
             --tc-bg: #0D0D0D;
@@ -113,7 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               flex-shrink: 0;
             }
           }
-        `}</style>
+        ` }} />
       </head>
       <body>
         <AuthProvider>
