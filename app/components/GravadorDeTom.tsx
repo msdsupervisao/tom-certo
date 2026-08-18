@@ -13,7 +13,7 @@ interface GravadorDeTomProps {
   onTomDetectado: (nota: NomeNota, estabilidade: number) => void;
 }
 
-type Estado = 'ocioso' | 'gravando' | 'processando';
+type Estado = 'ocioso' | 'gravando' | 'processando' | 'resultado';
 
 /**
  * Componente de captura: grava ~6 segundos de áudio, roda a detecção
@@ -34,6 +34,8 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const [notaAtual, setNotaAtual] = useState('');
   const [clarityAtual, setClarityAtual] = useState(0);
   const [amostrasAceitas, setAmostrasAceitas] = useState(0);
+  // Resultado final visível (nota + estabilidade), para o usuário confirmar.
+  const [resultadoFinal, setResultadoFinal] = useState<{ nota: NomeNota; estabilidade: number } | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -139,26 +141,32 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
     const resultado = calcularTomPredominante(historicoNotasRef.current);
 
     if (!resultado) {
+      setResultadoFinal(null);
       setAvisoBaixaConfianca(true);
       setEstado('ocioso');
       return;
     }
 
     // resultado.nota já é a classe de tom (sem oitava), ex.: "G", "C#".
-    const nomeNota = resultado.nota as NomeNota;
-
-    if (resultado.estabilidadePercentual < LIMIAR_ESTABILIDADE_ACEITAVEL) {
-      setAvisoBaixaConfianca(true);
-      setEstado('ocioso');
-      return;
-    }
-
-    setEstado('ocioso');
-    onTomDetectado(nomeNota, resultado.estabilidadePercentual);
+    // Não decidimos sozinhos: mostramos o que foi detectado + a estabilidade
+    // e deixamos o usuário confirmar (Aplicar) ou cantar de novo.
+    setResultadoFinal({ nota: resultado.nota as NomeNota, estabilidade: resultado.estabilidadePercentual });
+    setAvisoBaixaConfianca(false);
+    setEstado('resultado');
   }
 
   function pararManualmente() {
     finalizarGravacao();
+  }
+
+  function aplicarResultado() {
+    if (resultadoFinal) onTomDetectado(resultadoFinal.nota, resultadoFinal.estabilidade);
+  }
+
+  function cantarDeNovo() {
+    setResultadoFinal(null);
+    setAvisoBaixaConfianca(false);
+    setEstado('ocioso');
   }
 
   return (
@@ -202,7 +210,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
             </div>
           </div>
           <p className="mt-2 text-center text-xs text-text-dim">
-            Cante um trecho firme. A nota e a clareza aparecem acima em tempo real.
+            Segure <strong>uma nota só</strong> (ex.: cante &quot;aaah&quot;) num tom confortável. A nota e a clareza aparecem acima em tempo real.
           </p>
         </div>
       )}
@@ -210,6 +218,38 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       {estado === 'processando' && (
         <div className="py-4 text-center text-sm text-text-dim">
           Identificando o tom...
+        </div>
+      )}
+
+      {estado === 'resultado' && resultadoFinal && (
+        <div className="text-center">
+          <p className="text-[11px] uppercase tracking-wider text-text-dim">Tom detectado</p>
+          <p className="font-display text-6xl font-bold" style={{ color: 'var(--tc-gold)', lineHeight: 1.1 }}>
+            {resultadoFinal.nota}
+          </p>
+          <p className="mt-1 text-sm" style={{ color: resultadoFinal.estabilidade >= LIMIAR_ESTABILIDADE_ACEITAVEL ? 'var(--turquesa)' : 'var(--amarelo)' }}>
+            estabilidade {resultadoFinal.estabilidade}%
+          </p>
+          {resultadoFinal.estabilidade < LIMIAR_ESTABILIDADE_ACEITAVEL && (
+            <p className="mx-auto mt-2 max-w-xs text-xs text-text-dim">
+              A voz variou bastante. Para um resultado firme, segure <strong>uma nota só</strong> (sem melodia) por alguns segundos.
+            </p>
+          )}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={aplicarResultado}
+              className="flex-1 rounded-xl py-3 text-sm font-semibold text-white transition hover:opacity-90 active:scale-95"
+              style={{ background: 'var(--tc-gold)', color: '#0D0D0D' }}
+            >
+              Aplicar tom {resultadoFinal.nota}
+            </button>
+            <button
+              onClick={cantarDeNovo}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold text-text-dim transition hover:bg-bg-soft active:scale-95"
+            >
+              Cantar de novo
+            </button>
+          </div>
         </div>
       )}
 
