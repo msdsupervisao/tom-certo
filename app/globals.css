@@ -158,6 +158,12 @@ html, body {
   .tc-glow:hover::before { opacity: 1; }
 }
 
+/* Itens da barra inferior — sobem e acendem no hover */
+.tc-nav-item { transition: transform 0.18s ease, color 0.18s ease; }
+@media (hover: hover) {
+  .tc-nav-item:hover { transform: translateY(-3px); color: var(--tc-gold) !important; }
+}
+
 /* Troca de acorde na transposição — pop curtinho */
 @keyframes tc-acorde-troca {
   0%   { transform: translateY(-2px) scale(0.86); opacity: 0.3; }
@@ -170,7 +176,7 @@ html, body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tc-press, .tc-lift, .tc-glow::before, .tc-acorde-anim {
+  .tc-press, .tc-lift, .tc-glow::before, .tc-acorde-anim, .tc-nav-item {
     transition: none !important;
     animation: none !important;
     transform: none !important;

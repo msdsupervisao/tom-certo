@@ -5,6 +5,14 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, Search, Heart, User } from 'lucide-react';
 
+/** Move o brilho radial (.tc-glow) para a posição do cursor sobre o item. */
+function glowMove(e: React.MouseEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--gx', `${e.clientX - r.left}px`);
+  el.style.setProperty('--gy', `${e.clientY - r.top}px`);
+}
+
 const TABS = [
   { href: '/', icon: Home, label: 'Início', id: 'home' },
   { href: '/#buscar', icon: Search, label: 'Buscar', id: 'buscar' },
@@ -51,12 +59,16 @@ export default function BottomNav() {
           <Link
             key={tab.href}
             href={tab.href}
+            onMouseMove={glowMove}
+            className="tc-nav-item tc-glow tc-press"
             style={{
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: 4,
+              paddingTop: 4,
+              paddingBottom: 4,
               color: active ? 'var(--tc-gold)' : 'var(--tc-nav-muted)',
               textDecoration: 'none',
             }}
