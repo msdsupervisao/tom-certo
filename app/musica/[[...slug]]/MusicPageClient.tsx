@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { calcularIntervaloSemitons, transporCifraCompleta, NomeNota, NOMES_NOTAS } from '@/lib/music-theory';
 import { registrarDeteccao, ehFavorito, registrarVisita, alternarFavorito } from '@/lib/historico-local';
 import { salvarENotificar } from '@/lib/storage-events';
-import { buscarMusicaPorId } from '@/lib/data/songs-mock';
+import { slugRealDoLegado } from '@/lib/data/songs-mock';
 import CifraViewer from '@/app/components/CifraViewer';
 import Magnetic from '@/app/components/Magnetic';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
@@ -52,12 +52,11 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
     setCarregando(true);
     setErro(null);
 
-    const mock = buscarMusicaPorId(slug);
-    if (mock) {
-      setDados({ id: mock.id, titulo: mock.titulo, artista: mock.artista, tomOriginal: mock.tomOriginal, cifra: mock.cifra, slug: mock.id });
-      setFavorito(ehFavorito(slug));
-      registrarVisita(slug, mock.titulo, mock.artista);
-      setCarregando(false);
+    // Ids legados do antigo catálogo de teste (1–5) → redireciona para a
+    // cifra real no Cifra Club.
+    const slugReal = slugRealDoLegado(slug);
+    if (slugReal) {
+      router.replace(`/musica/${slugReal}`);
       return;
     }
 

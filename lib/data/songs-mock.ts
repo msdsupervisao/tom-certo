@@ -1,76 +1,40 @@
 // lib/data/songs-mock.ts
 //
-// Catálogo de TESTE. Conforme decidido: sem integração de fonte externa
-// e sem cadastro manual ainda - o objetivo agora é provar o motor
-// (busca -> cantar -> detectar -> transpor -> exibir) de ponta a ponta.
-// Trocar isso por um catálogo real (curado ou via API) não deve exigir
-// mudança nenhuma no motor de transposição - só na fonte de dados.
+// O catálogo de TESTE (5 músicas com cifra inventada) foi removido: o app
+// agora exibe SEMPRE a cifra real do Cifra Club. Para não quebrar links/
+// favoritos/recentes antigos que apontavam para os ids numéricos `1`–`5`,
+// mantemos abaixo um mapa que redireciona esses ids para o slug real
+// correspondente no Cifra Club (ex.: `1` -> `ana-vilela/trem-bala`).
+//
+// As funções `buscarMusicas` / `buscarMusicaPorId` continuam exportadas
+// (agora sem resultados) só para não exigir mudança nos imports existentes.
 
 import { Song } from '../types';
 
-export const SONGS_MOCK: Song[] = [
-  {
-    id: '1',
-    titulo: 'Trem-Bala',
-    artista: 'Ana Vilela',
-    tomOriginal: 'G',
-    cifra: `{G}Quem nunca {Em}parou pra pensar na vida
-{C}E na correria do dia a dia se {D}perguntou
-{G}Vai ter um {Em}fim. Será que vamos
-{C}Pra algum lugar melhor depois daqui {D}não sei`,
-  },
-  {
-    id: '2',
-    titulo: 'Evidências',
-    artista: 'Chitãozinho & Xororó',
-    tomOriginal: 'D',
-    cifra: `{D}Quando eu {A}digo que deixei de te {D}amar
-É porque eu {G}te amo {A}
-{D}Quando eu {A}digo que não quero mais {D}you
-É porque eu {Bm}penso em {E}você {A}`,
-  },
-  {
-    id: '3',
-    titulo: 'Águas de Março',
-    artista: 'Tom Jobim',
-    tomOriginal: 'Am',
-    cifra: `{Am}É pau, é pedra, é o {D}fim do caminho
-É um {G}resto de toco, é um {C}pouco sozinho
-É um {F}caco de vidro, é a {Bm}vida, é o {E}sol`,
-  },
-  {
-    id: '4',
-    titulo: 'Tempo Perdido',
-    artista: 'Legião Urbana',
-    tomOriginal: 'E',
-    cifra: `{E}Todos os dias quando acordo
-{B}Não tenho mais o tempo que passou
-{C#m}Mas tenho muito tempo
-{A}Temos todo o tempo do {E}mundo`,
-  },
-  {
-    id: '5',
-    titulo: 'Garota de Ipanema',
-    artista: 'Tom Jobim',
-    tomOriginal: 'F',
-    cifra: `{F}Olha que {Gm}coisa mais {Gm7/C}linda
-{F}Mais cheia de {Gm}graça
-{Gm7/C}É ela {F}menina
-{Gm}Que vem e que {Gm7/C}passa`,
-  },
-];
+/** Catálogo vazio — nada de cifra falsa. */
+export const SONGS_MOCK: Song[] = [];
 
-export function buscarMusicas(query: string): Song[] {
-  const termoNormalizado = query.trim().toLowerCase();
-  if (!termoNormalizado) return [];
+/**
+ * Ids legados (do antigo catálogo de teste) -> slug real no Cifra Club.
+ * Quem abrir `/musica/1` é redirecionado para a cifra verdadeira.
+ */
+export const REDIRECIONAMENTOS_LEGADOS: Record<string, string> = {
+  '1': 'ana-vilela/trem-bala',
+  '2': 'chitaozinho-e-xororo/evidencias',
+  '3': 'tom-jobim/aguas-de-marco',
+  '4': 'legiao-urbana/tempo-perdido',
+  '5': 'tom-jobim/garota-de-ipanema',
+};
 
-  return SONGS_MOCK.filter(
-    (song) =>
-      song.titulo.toLowerCase().includes(termoNormalizado) ||
-      song.artista.toLowerCase().includes(termoNormalizado)
-  );
+/** Retorna o slug real do Cifra Club para um id legado, ou undefined. */
+export function slugRealDoLegado(id: string): string | undefined {
+  return REDIRECIONAMENTOS_LEGADOS[id];
 }
 
-export function buscarMusicaPorId(id: string): Song | undefined {
-  return SONGS_MOCK.find((song) => song.id === id);
+export function buscarMusicas(_query: string): Song[] {
+  return [];
+}
+
+export function buscarMusicaPorId(_id: string): Song | undefined {
+  return undefined;
 }
