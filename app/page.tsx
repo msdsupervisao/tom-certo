@@ -33,6 +33,14 @@ interface ResultadoBusca {
   slug: string;
 }
 
+interface ArtistaBusca {
+  nome: string;
+  slug: string;
+  url: string;
+}
+
+type ModoBusca = 'musicas' | 'artistas';
+
 function saudacaoDoDia(): string {
   const h = new Date().getHours();
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
@@ -50,8 +58,12 @@ export default function Home() {
   const [favoritos, setFavoritos]                   = useState<string[]>([]);
   const [favoritosCompletos, setFavoritosCompletos] = useState<FavItem[]>([]);
   const [visitadas, setVisitadas]                   = useState<MusicaVisitada[]>([]);
+  const [modoBusca, setModoBusca]                   = useState<ModoBusca>('musicas');
   const [buscaQuery, setBuscaQuery]                 = useState('');
   const [resultadosBusca, setResultadosBusca]       = useState<ResultadoBusca[]>([]);
+  const [artistasBusca, setArtistasBusca]           = useState<ArtistaBusca[]>([]);
+  const [artistaSelecionado, setArtistaSelecionado] = useState<ArtistaBusca | null>(null);
+  const [totalMusicasArtista, setTotalMusicasArtista] = useState(0);
   const [buscaCarregando, setBuscaCarregando]       = useState(false);
   const [buscaFeita, setBuscaFeita]                 = useState(false);
   const [buscaErro, setBuscaErro]                   = useState('');
@@ -104,12 +116,15 @@ export default function Home() {
     };
   }, []);
 
-  const buscarNaHome = useCallback(async (q: string) => {
+  const buscarNaHome = useCallback(async (q: string, modo: ModoBusca = modoBusca, artistaSlug = '') => {
     const termo = q.trim();
     const seq = ++buscaSeqRef.current;
 
     if (termo.length < 2) {
       setResultadosBusca([]);
+      setArtistasBusca([]);
+      setArtistaSelecionado(null);
+      setTotalMusicasArtista(0);
       setBuscaFeita(false);
       setBuscaErro('');
       setBuscaCarregando(false);
@@ -119,21 +134,29 @@ export default function Home() {
     setBuscaCarregando(true);
     setBuscaErro('');
     try {
-      const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}`);
+      const params = new URLSearchParams({ q: termo, modo });
+      if (modo === 'artistas' && artistaSlug) params.set('artista', artistaSlug);
+      const res = await fetch(`/api/buscar?${params.toString()}`);
       const data = await res.json();
       if (seq !== buscaSeqRef.current) return;
       if (!res.ok) throw new Error(data.erro || 'Busca indisponível');
       setResultadosBusca(Array.isArray(data.resultados) ? data.resultados : []);
+      setArtistasBusca(Array.isArray(data.artistas) ? data.artistas : []);
+      setArtistaSelecionado(data.artistaSelecionado || null);
+      setTotalMusicasArtista(Number(data.totalMusicasArtista || 0));
       setBuscaFeita(true);
     } catch (erro) {
       if (seq !== buscaSeqRef.current) return;
       setResultadosBusca([]);
+      setArtistasBusca([]);
+      setArtistaSelecionado(null);
+      setTotalMusicasArtista(0);
       setBuscaErro(erro instanceof Error ? erro.message : 'Não foi possível buscar agora.');
       setBuscaFeita(true);
     } finally {
       if (seq === buscaSeqRef.current) setBuscaCarregando(false);
     }
-  }, []);
+  }, [modoBusca]);
 
   function handleTomDetectado(nota: NomeNota, estabilidade: number) {
     registrarDeteccao('_home', nota, estabilidade);
@@ -173,6 +196,9 @@ export default function Home() {
 
     if (termo.length < 2) {
       setResultadosBusca([]);
+      setArtistasBusca([]);
+      setArtistaSelecionado(null);
+      setTotalMusicasArtista(0);
       setBuscaFeita(false);
       setBuscaErro('');
       setBuscaCarregando(false);
@@ -181,7 +207,11 @@ export default function Home() {
 
     setBuscaCarregando(true);
     setBuscaErro('');
-    buscaTimerRef.current = setTimeout(() => buscarNaHome(valor), 300);
+    setResultadosBusca([]);
+    setArtistasBusca([]);
+    setArtistaSelecionado(null);
+    setTotalMusicasArtista(0);
+    buscaTimerRef.current = setTimeout(() => buscarNaHome(valor, modoBusca), modoBusca === 'artistas' ? 450 : 300);
   }
 
   function limparBusca() {
@@ -189,10 +219,43 @@ export default function Home() {
     buscaSeqRef.current += 1;
     setBuscaQuery('');
     setResultadosBusca([]);
+    setArtistasBusca([]);
+    setArtistaSelecionado(null);
+    setTotalMusicasArtista(0);
     setBuscaFeita(false);
     setBuscaErro('');
     setBuscaCarregando(false);
     buscaInputRef.current?.focus();
+  }
+
+  function trocarModoBusca(modo: ModoBusca) {
+    if (modo === modoBusca) return;
+    setModoBusca(modo);
+    if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
+    buscaSeqRef.current += 1;
+    setResultadosBusca([]);
+    setArtistasBusca([]);
+    setArtistaSelecionado(null);
+    setTotalMusicasArtista(0);
+    setBuscaFeita(false);
+    setBuscaErro('');
+
+    if (buscaQuery.trim().length >= 2) {
+      setBuscaCarregando(true);
+      buscaTimerRef.current = setTimeout(() => buscarNaHome(buscaQuery, modo), modo === 'artistas' ? 150 : 100);
+    } else {
+      setBuscaCarregando(false);
+    }
+  }
+
+  function selecionarArtista(artista: ArtistaBusca) {
+    if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
+    setBuscaCarregando(true);
+    setBuscaErro('');
+    setArtistaSelecionado(artista);
+    setResultadosBusca([]);
+    setTotalMusicasArtista(0);
+    buscarNaHome(buscaQuery || artista.nome, 'artistas', artista.slug);
   }
 
   function abrirResultadoBusca(resultado: ResultadoBusca) {
@@ -322,13 +385,28 @@ export default function Home() {
 
         {/* Busca na home */}
         <section id="buscar" style={{ marginBottom: 14, scrollMarginTop: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 6, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: 4, marginBottom: 8 }}>
+            {(['musicas', 'artistas'] as ModoBusca[]).map((modo) => {
+              const ativo = modoBusca === modo;
+              return (
+                <button
+                  key={modo}
+                  onClick={() => trocarModoBusca(modo)}
+                  style={{ border: 'none', borderRadius: 9, background: ativo ? 'var(--tc-gold)' : 'transparent', color: ativo ? '#0D0D0D' : 'var(--tc-txt2)', cursor: 'pointer', fontSize: 12, fontWeight: 800, padding: '9px 10px' }}
+                >
+                  {modo === 'musicas' ? 'Músicas' : 'Artistas'}
+                </button>
+              );
+            })}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: '10px 14px' }}>
             <Search size={18} style={{ color: 'var(--tc-txt3)', flexShrink: 0 }} />
             <input
               ref={buscaInputRef}
               value={buscaQuery}
               onChange={handleBuscaChange}
-              placeholder="Buscar música ou artista..."
+              placeholder={modoBusca === 'artistas' ? 'Buscar artista...' : 'Buscar música...'}
               style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--tc-txt)', fontSize: 14, fontFamily: 'var(--font-ui)', outline: 'none' }}
             />
             {buscaCarregando && (
@@ -352,9 +430,38 @@ export default function Home() {
             </div>
           )}
 
+          {modoBusca === 'artistas' && artistaSelecionado && !buscaErro && (
+            <div style={{ marginTop: 10, background: 'rgba(212,160,23,0.08)', border: '0.5px solid rgba(212,160,23,0.28)', borderRadius: 12, padding: '12px 14px' }}>
+              <p style={{ margin: 0, color: 'var(--tc-gold)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Artista selecionado</p>
+              <p style={{ margin: '4px 0 0', color: 'var(--tc-txt)', fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artistaSelecionado.nome}</p>
+              <p style={{ margin: '2px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>{totalMusicasArtista || resultadosBusca.length} músicas encontradas no Cifra Club</p>
+            </div>
+          )}
+
+          {modoBusca === 'artistas' && artistasBusca.length > 1 && !buscaErro && (
+            <div style={{ marginTop: 10 }}>
+              <StripLabel label="Outros artistas" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {artistasBusca.map((artista) => {
+                  const ativo = artistaSelecionado?.slug === artista.slug;
+                  return (
+                    <button
+                      key={artista.slug}
+                      onClick={() => selecionarArtista(artista)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: ativo ? 'rgba(212,160,23,0.12)' : 'var(--tc-s1)', border: ativo ? '0.5px solid rgba(212,160,23,0.35)' : '0.5px solid var(--tc-border)', borderRadius: 12, padding: '10px 12px', cursor: 'pointer', color: 'var(--tc-txt)' }}
+                    >
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700 }}>{artista.nome}</span>
+                      <span style={{ color: ativo ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>{ativo ? 'Aberto' : 'Ver todas'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {resultadosBusca.length > 0 && !buscaErro && (
             <div style={{ marginTop: 10 }}>
-              <StripLabel label="Resultados relevantes" />
+              <StripLabel label={modoBusca === 'artistas' ? 'Músicas do artista' : 'Resultados relevantes'} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {resultadosBusca.map((resultado, index) => (
                   <button
@@ -371,8 +478,8 @@ export default function Home() {
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.titulo}</p>
                       <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--tc-txt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.artista}</p>
                     </span>
-                    <span style={{ flexShrink: 0, color: index === 0 ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      {index === 0 ? 'Mais relevante' : `#${index + 1}`}
+                    <span style={{ flexShrink: 0, color: index === 0 && modoBusca === 'musicas' ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {modoBusca === 'artistas' ? `#${index + 1}` : index === 0 ? 'Mais relevante' : `#${index + 1}`}
                     </span>
                   </button>
                 ))}
@@ -382,8 +489,8 @@ export default function Home() {
 
           {buscaFeita && !buscaCarregando && !buscaErro && resultadosBusca.length === 0 && buscaQuery.trim().length >= 2 && (
             <div style={{ textAlign: 'center', marginTop: 10, padding: '24px 18px', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 14 }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--tc-txt)' }}>Nenhuma música encontrada</p>
-              <p style={{ margin: '5px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>Tente outro nome de música ou artista.</p>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--tc-txt)' }}>{modoBusca === 'artistas' ? 'Nenhum artista encontrado' : 'Nenhuma música encontrada'}</p>
+              <p style={{ margin: '5px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>{modoBusca === 'artistas' ? 'Tente o nome principal do artista no Cifra Club.' : 'Tente outro nome de música ou artista.'}</p>
             </div>
           )}
         </section>
