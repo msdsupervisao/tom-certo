@@ -7,6 +7,7 @@ import { registrarDeteccao, ehFavorito, registrarVisita, alternarFavorito } from
 import { salvarENotificar } from '@/lib/storage-events';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
 import CifraViewer from '@/app/components/CifraViewer';
+import Magnetic from '@/app/components/Magnetic';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import { useAuth } from '@/app/components/AuthProvider';
@@ -160,6 +161,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           <button
             onClick={voltar}
             aria-label="Voltar"
+            className="tc-press"
             style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--tc-txt2)', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}
           >
             <ArrowLeft size={18} />
@@ -171,12 +173,14 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
               onClick={() => window.open(spotifySearchUrl, '_blank')}
+              className="tc-press"
               style={{ padding: '10px 14px', borderRadius: 12, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
             >
               Abrir no Spotify
             </button>
             <button
               onClick={toggleFavorito}
+              className="tc-press"
               style={{ width: 44, height: 44, borderRadius: 12, background: favorito ? 'var(--tc-gold)' : 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', color: favorito ? '#0D0D0D' : 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               aria-label={favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             >
@@ -185,6 +189,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             <button
               onClick={() => setAfinadorAberto(true)}
               aria-label="Afinador"
+              className="tc-press"
               style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
             >
               <SlidersHorizontal size={16} />
@@ -192,6 +197,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             <button
               onClick={() => window.print()}
               aria-label="Imprimir"
+              className="tc-press"
               style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
             >
               <Printer size={16} />
@@ -212,6 +218,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             <button
               onClick={() => setSimplificada((s) => !s)}
               aria-pressed={simplificada}
+              className="tc-press"
               title={simplificada ? 'Mostrando acordes simplificados — clique para a versão completa' : 'Mostrar acordes simplificados (mais fáceis, sem tablatura)'}
               style={{ display: 'flex', alignItems: 'center', gap: 6, height: 44, borderRadius: 20, padding: '0 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: simplificada ? 'rgba(212,160,23,0.15)' : 'var(--tc-s2)', border: simplificada ? '0.5px solid rgba(212,160,23,0.45)' : '0.5px solid var(--tc-border)', color: simplificada ? 'var(--tc-gold)' : 'var(--tc-txt2)' }}
             >
@@ -221,6 +228,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
               <button
                 onClick={() => setTamanhoFonte((t) => Math.max(12, t - 1))}
                 disabled={tamanhoFonte <= 12}
+                className="tc-press"
                 style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte <= 12 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte <= 12 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte <= 12 ? 0.5 : 1 }}
               >
                 A−
@@ -229,6 +237,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
               <button
                 onClick={() => setTamanhoFonte((t) => Math.min(24, t + 1))}
                 disabled={tamanhoFonte >= 24}
+                className="tc-press"
                 style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte >= 24 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte >= 24 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte >= 24 ? 0.5 : 1 }}
               >
                 A+
@@ -236,21 +245,24 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
-              <button onClick={() => setAjusteManual((a) => a - 1)} style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>−</button>
+              <button onClick={() => setAjusteManual((a) => a - 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>−</button>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tc-txt2)', minWidth: 38, textAlign: 'center' }}>½ Tom</span>
-              <button onClick={() => setAjusteManual((a) => a + 1)} style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>+</button>
+              <button onClick={() => setAjusteManual((a) => a + 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>+</button>
               {semitons !== 0 && (
                 <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-txt3)' }}>✕</button>
               )}
             </div>
 
             {!mostrarGravador && !tomDetectado && (
-              <button
-                onClick={() => setMostrarGravador(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 24, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, minWidth: 44 }}
-              >
-                <Mic size={16} /> Cantar para ajustar
-              </button>
+              <Magnetic>
+                <button
+                  onClick={() => setMostrarGravador(true)}
+                  className="tc-press"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 24, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, minWidth: 44 }}
+                >
+                  <Mic size={16} /> Cantar para ajustar
+                </button>
+              </Magnetic>
             )}
 
             {tomDetectado && (

@@ -58,6 +58,18 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
   const [duasColunas, setDuasColunas] = useState(false);
   const [diagramaAtivo, setDiagramaAtivo] = useState<DiagramaAtivo | null>(null);
 
+  // Anima os acordes quando a cifra muda (transposição / versão simplificada),
+  // sem disparar no primeiro render para não animar o carregamento inicial.
+  const primeiroRenderRef = useRef(true);
+  const [versaoAnim, setVersaoAnim] = useState(0);
+  useEffect(() => {
+    if (primeiroRenderRef.current) {
+      primeiroRenderRef.current = false;
+      return;
+    }
+    setVersaoAnim((v) => v + 1);
+  }, [cifra]);
+
   useEffect(() => {
     if (!rolando) {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -111,10 +123,10 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
             {duasColunas ? '1' : '2'}
           </button>
           <button onClick={() => ajustarVelocidade(-VELOCIDADE_PASSO)} disabled={velocidade <= VELOCIDADE_MIN}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">−</button>
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft active:scale-95 disabled:opacity-30">−</button>
           <span className="w-12 text-center text-sm font-semibold tabular-nums text-text-dim">{velocidade.toFixed(1)}x</span>
           <button onClick={() => ajustarVelocidade(VELOCIDADE_PASSO)} disabled={velocidade >= VELOCIDADE_MAX}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft disabled:opacity-30">+</button>
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft active:scale-95 disabled:opacity-30">+</button>
         </div>
       </div>
 
@@ -128,6 +140,7 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
             <LinhaDaCifra
               key={i}
               linha={linha}
+              versaoAnim={versaoAnim}
               onAcordeHover={(acorde, x, y) => setDiagramaAtivo({ acorde, x, y })}
               onAcordeLeave={() => setDiagramaAtivo(null)}
             />
@@ -142,8 +155,9 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
   );
 }
 
-function LinhaDaCifra({ linha, onAcordeHover, onAcordeLeave }: {
+function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
   linha: string;
+  versaoAnim: number;
   onAcordeHover: (acorde: string, x: number, y: number) => void;
   onAcordeLeave: () => void;
 }) {
@@ -175,7 +189,7 @@ function LinhaDaCifra({ linha, onAcordeHover, onAcordeLeave }: {
       <div className="mt-3 first:mt-0">
         <div className="whitespace-pre font-bold" style={{ color: 'var(--tc-gold)' }}>
           {partes.map((p, i) => p.acorde
-            ? <AcordeSpan key={i} acorde={p.acorde} texto={p.texto} onHover={onAcordeHover} onLeave={onAcordeLeave} />
+            ? <AcordeSpan key={`${i}-${versaoAnim}`} acorde={p.acorde} texto={p.texto} animar={versaoAnim > 0} onHover={onAcordeHover} onLeave={onAcordeLeave} />
             : <span key={i}>{p.texto}</span>
           )}
         </div>
@@ -191,7 +205,7 @@ function LinhaDaCifra({ linha, onAcordeHover, onAcordeLeave }: {
       <div className="mt-3 first:mt-0">
         <div className="whitespace-pre font-bold" style={{ color: 'var(--tc-gold)' }}>
           {partes.map((p, i) => p.acorde
-            ? <AcordeSpan key={i} acorde={p.acorde} texto={p.texto} onHover={onAcordeHover} onLeave={onAcordeLeave} />
+            ? <AcordeSpan key={`${i}-${versaoAnim}`} acorde={p.acorde} texto={p.texto} animar={versaoAnim > 0} onHover={onAcordeHover} onLeave={onAcordeLeave} />
             : <span key={i}>{p.texto}</span>
           )}
         </div>
@@ -203,13 +217,15 @@ function LinhaDaCifra({ linha, onAcordeHover, onAcordeLeave }: {
   return <div className="whitespace-pre" style={{ color: 'var(--tc-txt)' }}>{linha || '\u00A0'}</div>;
 }
 
-function AcordeSpan({ acorde, texto, onHover, onLeave }: {
+function AcordeSpan({ acorde, texto, animar, onHover, onLeave }: {
   acorde: string; texto: string;
+  animar?: boolean;
   onHover: (acorde: string, x: number, y: number) => void;
   onLeave: () => void;
 }) {
   return (
     <span
+      className={animar ? 'tc-acorde-anim' : undefined}
       style={{ color: 'var(--tc-gold)', cursor: 'pointer', borderRadius: 3, padding: '0 2px', transition: 'all 0.15s' }}
       onMouseEnter={e => {
         const el = e.target as HTMLElement;
