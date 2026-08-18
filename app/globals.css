@@ -149,8 +149,8 @@ html, body {
   color: var(--tc-flip-front-color);
   transform: translateZ(-0.5em) rotateX(0deg);
   transform-style: preserve-3d;
-  animation: tc-flip-top 1.15s cubic-bezier(0.2, 0.78, 0.22, 1) both;
-  animation-delay: calc(var(--tc-flip-index) * 42ms);
+  animation: tc-flip-top 1.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--tc-flip-index) * 48ms);
   will-change: transform;
 }
 
@@ -169,6 +169,7 @@ html, body {
 .tc-flip-front {
   position: relative;
   color: var(--tc-flip-front-color);
+  text-shadow: 0 0 0 rgba(212, 160, 23, 0);
   transform: translateZ(0.5em);
 }
 
@@ -176,6 +177,7 @@ html, body {
   position: absolute;
   inset: 0;
   color: var(--tc-flip-back-color);
+  text-shadow: 0 0 16px rgba(212, 160, 23, 0.5);
   transform: rotateX(-90deg) translateZ(0.5em);
 }
 
