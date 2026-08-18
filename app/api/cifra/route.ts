@@ -15,6 +15,7 @@ export interface CifraResult {
   tomOriginal: string;
   cifra: string; // no formato {Acorde}Letra da linha
   slug: string;
+  simplificada: boolean; // se veio da versão simplificada do Cifra Club
 }
 
 export async function GET(request: NextRequest) {
@@ -23,7 +24,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ erro: 'slug obrigatório' }, { status: 400 });
   }
 
-  const url = `https://www.cifraclub.com.br/${slug}/`;
+  // ?simplificada=1 busca a versão de acordes simplificados do Cifra Club
+  // (acordes mais fáceis e sem tablatura), servida em /{slug}/simplificada.html
+  const simplificada = ['1', 'true', 'sim'].includes(
+    (request.nextUrl.searchParams.get('simplificada') || '').toLowerCase()
+  );
+
+  const url = simplificada
+    ? `https://www.cifraclub.com.br/${slug}/simplificada.html`
+    : `https://www.cifraclub.com.br/${slug}/`;
 
   try {
     const response = await fetch(url, {
@@ -51,7 +60,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ erro: 'Não foi possível extrair a cifra' }, { status: 422 });
     }
 
-    return NextResponse.json(resultado);
+    return NextResponse.json({ ...resultado, simplificada });
   } catch (erro) {
     console.error('[cifra] Erro ao buscar:', erro);
     return NextResponse.json(
@@ -85,7 +94,7 @@ function decodeEntities(s: string): string {
     .replace(/&[a-zA-Z]+;/g, (m) => map[m] ?? m)
 }
 
-function parsearCifra(html: string, slug: string): CifraResult | null {
+function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplificada'> | null {
   // --- Tom original ---
   // Tenta múltiplos padrões para encontrar o tom
   let tomMatch = html.match(/tom:\s*<[^>]+>([A-G][#b]?)<\/[^>]+>/i)

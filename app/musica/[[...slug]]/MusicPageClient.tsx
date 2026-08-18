@@ -24,6 +24,7 @@ interface CifraResult {
   tomOriginal: string;
   cifra: string;
   slug: string;
+  simplificada?: boolean;
 }
 
 export default function MusicPageClient({ params }: MusicPageClientProps) {
@@ -43,6 +44,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
   const [tamanhoFonte, setTamanhoFonte] = useState(15);
   const [favorito, setFavorito] = useState(false);
   const [mostrarGravador, setMostrarGravador] = useState(false);
+  const [simplificada, setSimplificada] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -58,7 +60,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
       return;
     }
 
-    fetch(`/api/cifra?slug=${encodeURIComponent(slug)}`)
+    fetch(`/api/cifra?slug=${encodeURIComponent(slug)}${simplificada ? '&simplificada=1' : ''}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.erro) {
@@ -71,7 +73,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
       })
       .catch(() => setErro('Falha ao carregar. Verifique sua conexão.'))
       .finally(() => setCarregando(false));
-  }, [slug]);
+  }, [slug, simplificada]);
 
   useEffect(() => {
     if (!user || !slug) return;
@@ -207,6 +209,14 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setSimplificada((s) => !s)}
+              aria-pressed={simplificada}
+              title={simplificada ? 'Mostrando acordes simplificados — clique para a versão completa' : 'Mostrar acordes simplificados (mais fáceis, sem tablatura)'}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 44, borderRadius: 20, padding: '0 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: simplificada ? 'rgba(212,160,23,0.15)' : 'var(--tc-s2)', border: simplificada ? '0.5px solid rgba(212,160,23,0.45)' : '0.5px solid var(--tc-border)', color: simplificada ? 'var(--tc-gold)' : 'var(--tc-txt2)' }}
+            >
+              {simplificada ? '✓ ' : ''}Simplificada
+            </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
               <button
                 onClick={() => setTamanhoFonte((t) => Math.max(12, t - 1))}
