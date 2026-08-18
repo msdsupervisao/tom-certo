@@ -2,34 +2,54 @@
 
 Cante um trecho, receba a cifra no seu tom — sem ficar adivinhando capotraste.
 
+**No ar:** https://tom-certo.vercel.app
+
+## O que é
+
+App web que resolve um problema real de quem canta e toca: você canta um trecho,
+o app **detecta o seu tom vocal** pelo microfone e devolve a **cifra já transposta**
+para o tom certo — em vez de você ficar testando capotraste no chute. A proposta
+central é *detectar o tom*, não apenas *buscar cifra*.
+
 ## Estado atual
 
-MVP em construção. Motor completo já implementado e testado:
+App publicado e funcional. Principais recursos implementados e testados:
 
-- ✅ Busca de música (catálogo mock, 5 músicas de teste)
-- ✅ Detecção de tom cantado (autocorrelação — mesmo algoritmo validado no teste isolado, 70-90% de acerto em condições reais)
-- ✅ Transposição automática de cifra (14/14 testes de lógica passando, incluindo acordes com baixo de inversão e bemóis)
-- ✅ Feedback de confiança na UI quando a detecção não é estável
-- ✅ Exibição da cifra transposta no formato padrão de mercado (acordes em linha própria acima da letra, alinhados por coluna — como Cifra Club/Ultimate Guitar)
-- ✅ Tema visual colorido/vibrante com alternância claro/escuro (botão no topo)
-- ✅ Afinador de violão em tempo real (escuta o microfone e compara com as 6 cordas EADGBE)
+- ✅ **Busca de música** com catálogo curado (104 músicas com slug do Cifra Club) +
+  fallback no iTunes, que confirma se a cifra existe no Cifra Club antes de exibir
+- ✅ **Cifra real do Cifra Club**: as rotas de API buscam e fazem parse da cifra ao
+  vivo (nada é armazenado — cada request é um fetch novo)
+- ✅ **Detecção de tom cantado** por autocorrelação (~70–90% de acerto em condições reais)
+- ✅ **Transposição automática de cifra** (14/14 testes de lógica, incluindo acordes
+  com baixo de inversão e bemóis)
+- ✅ Feedback de confiança na UI quando a detecção não está estável
+- ✅ Cifra no formato padrão de mercado (acordes em linha própria acima da letra,
+  alinhados por coluna — como Cifra Club/Ultimate Guitar)
+- ✅ **Login e conta de usuário** via Supabase (auth + callback)
+- ✅ **Favoritos na nuvem** (Supabase) e **histórico** local
+- ✅ Afinador de violão em tempo real (compara o microfone com as 6 cordas EADGBE)
 - ✅ Controle de tamanho de fonte da cifra (A− / A+)
-- ✅ Impressão da cifra (botão dedicado, oculta controles e mostra só letra+acordes no papel)
-- ✅ Salvar como PDF (usa a opção nativa "Salvar como PDF" da janela de impressão do navegador)
-- ✅ Rolagem automática da cifra (0.1x a 1.5x, ajuste fino por botões −/+), pausa automática no fim
-- ✅ Ilustrações originais: padrão de motivos musicais como textura de fundo da cifra — sem fotos de pessoas reais, evitando qualquer questão de direito de imagem/copyright
-- ✅ Design system completo: paleta documentada, tipografia, e 6 componentes base reutilizáveis (Button, Input, Card, Modal, Navbar, Sidebar) em `app/components/ui/`. Ver `design-system/DESIGN_SYSTEM.md`.
-- ✅ Home reformulada com foco na proposta de valor central (detectar o tom, não "buscar cifra"): hero com CTA direto, seção "Como funciona", Perfil Vocal, Músicas Recentes e Favoritos — todos com dados REAIS persistidos em localStorage, sem nenhum número decorativo/fictício
-- ⚠️ Prova social (contadores de "X músicas ajustadas por todos os usuários") foi conscientemente NÃO implementada: exigiria backend com usuários reais agregados, e inventar esses números seria propaganda falsa, não prova social genuína. Fica registrado como pendência para quando houver base de usuários real.
+- ✅ Impressão da cifra e "Salvar como PDF" (via janela de impressão do navegador)
+- ✅ Rolagem automática da cifra (0.1x a 1.5x, ajuste fino, pausa automática no fim)
+- ✅ Diagramas de acorde (ChordDiagram)
+- ✅ Tema claro/escuro com alternância no topo
+- ✅ Ilustrações originais (padrão de motivos musicais como textura) — sem fotos de
+  pessoas reais, evitando qualquer questão de direito de imagem/copyright
+- ✅ Design system: paleta documentada, tipografia e componentes base reutilizáveis
+  em `app/components/ui/`. Ver `design-system/DESIGN_SYSTEM.md`
+- ✅ PWA com a identidade do app
 
-Fora do MVP por decisão consciente (ver arquitetura completa no histórico do projeto):
-- Sem login/conta de usuário
-- Sem pagamento (decisão pendente — Stripe é o caminho recomendado quando definir o modelo)
-- Sem catálogo real (mock com 5 músicas — trocar por fonte real não deve exigir mudança no motor)
+Pendências conscientes (registradas de propósito):
+- ⚠️ **Prova social** (contadores de "X músicas ajustadas por todos os usuários") NÃO
+  implementada: exigiria backend agregando usuários reais, e inventar esses números
+  seria propaganda falsa. Fica para quando houver base de usuários real.
+- ⚠️ **Monetização**: sem pagamento ainda (Stripe Checkout é o caminho recomendado
+  quando o modelo for definido).
+- ⚠️ **Dependência de scraping do Cifra Club**: funciona bem, mas pode quebrar se o
+  HTML deles mudar, e há a questão de termos de uso/licenciamento a resolver antes de
+  escalar.
 
 ## Como rodar
-
-Este projeto foi montado manualmente (sem `create-next-app`) porque o ambiente de build não tinha acesso à internet. Para rodar localmente ou no Claude Code:
 
 ```bash
 npm install
@@ -38,33 +58,66 @@ npm run dev
 
 Abra http://localhost:3000
 
+### Variáveis de ambiente
+
+O app usa Supabase para login e favoritos. Crie um arquivo `.env.local` na raiz
+(não versionado) com:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+> No deploy (Vercel), essas mesmas variáveis precisam estar cadastradas em
+> **Project → Settings → Environment Variables** — o `.env.local` não vai para o Git.
+
+## Deploy
+
+Hospedado na **Vercel**, com deploy automático a cada push na branch `main` do
+repositório GitHub. A URL de produção é https://tom-certo.vercel.app.
+
 ## Estrutura
 
 ```
 app/
-  page.tsx                 → tela de busca (etapa 1-2 do fluxo)
-  layout.tsx                → layout raiz, inclui a Navbar fixa
-  musica/[id]/page.tsx     → tela da música: cifra, gravador, transposição (etapas 2-5)
+  page.tsx                    → home (proposta de valor + busca + recentes/favoritos)
+  layout.tsx                  → layout raiz
+  buscar/page.tsx             → tela de busca
+  musica/[[...slug]]/         → tela da música: cifra, gravador, transposição
+  afinador/page.tsx           → afinador de violão
+  login/, auth/callback/      → autenticação Supabase
+  favoritas/, perfil/, sobre/ → páginas de conta e institucional
+  api/
+    buscar/route.ts           → busca (catálogo curado + iTunes, confirma no Cifra Club)
+    cifra/route.ts            → fetch + parse da cifra real do Cifra Club
+    spotify/route.ts          → apoio de metadados
+    diagnostico/route.ts      → rota de diagnóstico
   components/
-    ui/                    → design system: Button, Input, Card, Modal, Navbar, Sidebar
-    illustrations/         → SVGs originais (PadraoMusical em uso; SilhuetasShow disponível)
-    GravadorDeTom.tsx      → captura de áudio + detecção em tempo real
-    CifraViewer.tsx        → renderização da letra com acordes acima (padrão Cifra Club) + rolagem automática
-    Afinador.tsx           → afinador de violão em tempo real (modal)
-    ControleFonte.tsx      → zoom de fonte da cifra
+    ui/                       → design system (Button, Input, Card, Modal, Navbar, Sidebar)
+    illustrations/            → SVGs originais
+    GravadorDeTom.tsx         → captura de áudio + detecção em tempo real
+    CifraViewer.tsx           → letra com acordes acima + rolagem automática
+    Afinador.tsx              → afinador em tempo real
+    ChordDiagram.tsx          → diagrama de acordes
+    ControleFonte.tsx         → zoom de fonte da cifra
+    AuthProvider, BottomNav, BuscaMusica, PainelFavoritos, ThemeToggle, ...
 lib/
-  pitch-detection.ts       → algoritmo de autocorrelação (núcleo técnico validado)
-  music-theory.ts          → conversão frequência→nota e transposição de acordes
-  guitar-tuning.ts         → comparação de frequência com as 6 cordas do violão
-  data/songs-mock.ts       → catálogo de teste
+  pitch-detection.ts          → autocorrelação (núcleo técnico validado)
+  music-theory.ts             → frequência→nota e transposição de acordes
+  guitar-tuning.ts            → comparação com as 6 cordas do violão
+  supabase.ts                 → cliente Supabase
+  favoritos-nuvem.ts          → favoritos persistidos no Supabase
+  historico-local.ts          → histórico em localStorage
+  data/catalogo-musicas.ts    → catálogo curado (104 músicas, slug do Cifra Club)
 design-system/
-  DESIGN_SYSTEM.md         → documentação de paleta, tipografia e componentes
-pitch-test/index.html      → teste isolado original (mantido como referência histórica)
+  DESIGN_SYSTEM.md            → paleta, tipografia e componentes
+pitch-test/index.html         → teste isolado original (referência histórica)
 ```
 
 ## Próximos passos sugeridos
 
-1. Rodar `npm install && npm run dev` e testar o fluxo completo ponta a ponta com sua própria voz
-2. Decidir o modelo de catálogo (curado manual vs. fonte externa) e licenciamento
-3. Decidir o modelo de monetização e integrar Stripe Checkout
-4. Testar em mais dispositivos/microfones para mapear onde a detecção falha mais
+1. Testar o fluxo completo ponta a ponta com a própria voz em vários microfones
+2. Ampliar o catálogo curado e/ou melhorar o fallback de busca
+3. Avaliar licenciamento/robustez da fonte de cifras (hoje Cifra Club via scraping)
+4. Definir o modelo de monetização e integrar Stripe Checkout
+5. Mapear onde a detecção de tom falha mais e refinar o algoritmo
