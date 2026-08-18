@@ -13,6 +13,7 @@ import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import BottomNav from '@/app/components/BottomNav';
+import Text3DFlip from '@/app/components/Text3DFlip';
 import { AlertCircle, Mic, SlidersHorizontal, Search, Music, Heart, X } from 'lucide-react';
 import type { NomeNota } from '@/lib/music-theory';
 
@@ -325,8 +326,14 @@ export default function Home() {
             </p>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: temTom ? 44 : 28, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1.05, letterSpacing: -1 }}>
-                  {temTom ? perfil!.tom : 'Detecte seu tom'}
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: temTom ? 44 : 28, fontWeight: 700, color: 'var(--tc-txt)', lineHeight: 1.05, letterSpacing: 0 }}>
+                  {temTom ? perfil!.tom : (
+                    <Text3DFlip
+                      text="Detecte seu tom"
+                      color="var(--tc-txt)"
+                      flipColor="var(--tc-gold)"
+                    />
+                  )}
                 </p>
                 <p style={{ fontSize: 11, color: 'var(--tc-txt2)', marginTop: 4 }}>
                   {temTom ? `${perfil!.total} análises · ${perfil!.precisao ?? 0}% precisão` : 'Cante alguns segundos para ajustar cifras ao seu alcance'}

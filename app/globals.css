@@ -117,6 +117,91 @@ html, body {
   50%       { transform: scaleY(1); }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tc-flip-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  color: inherit;
+  perspective: 760px;
+  perspective-origin: center;
+  transform-style: preserve-3d;
+}
+
+.tc-flip-word {
+  display: inline-flex;
+  white-space: nowrap;
+  transform-style: preserve-3d;
+}
+
+.tc-flip-space {
+  white-space: pre;
+}
+
+.tc-flip-char {
+  --tc-flip-index: 0;
+  position: relative;
+  display: inline-block;
+  height: 1em;
+  color: var(--tc-flip-front-color);
+  transform: translateZ(-0.5em) rotateX(0deg);
+  transform-style: preserve-3d;
+  animation: tc-flip-top 1.15s cubic-bezier(0.2, 0.78, 0.22, 1) both;
+  animation-delay: calc(var(--tc-flip-index) * 42ms);
+  will-change: transform;
+}
+
+.tc-flip-char[data-direction='bottom'] {
+  animation-name: tc-flip-bottom;
+}
+
+.tc-flip-face {
+  display: block;
+  height: 1em;
+  line-height: 1em;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.tc-flip-front {
+  position: relative;
+  color: var(--tc-flip-front-color);
+  transform: translateZ(0.5em);
+}
+
+.tc-flip-back {
+  position: absolute;
+  inset: 0;
+  color: var(--tc-flip-back-color);
+  transform: rotateX(-90deg) translateZ(0.5em);
+}
+
+.tc-flip-char[data-direction='bottom'] .tc-flip-back {
+  transform: rotateX(90deg) translateZ(0.5em);
+}
+
+@keyframes tc-flip-top {
+  0%, 12% { transform: translateZ(-0.5em) rotateX(0deg); }
+  54%, 74% { transform: translateZ(-0.5em) rotateX(90deg); }
+  100% { transform: translateZ(-0.5em) rotateX(0deg); }
+}
+
+@keyframes tc-flip-bottom {
+  0%, 12% { transform: translateZ(-0.5em) rotateX(0deg); }
+  54%, 74% { transform: translateZ(-0.5em) rotateX(-90deg); }
+  100% { transform: translateZ(-0.5em) rotateX(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tc-flip-char {
+    animation: none;
+    transform: translateZ(-0.5em) rotateX(0deg);
+  }
+}
+
 /* --- Print --- */
 @media print {
   .no-print { display: none !important; }
