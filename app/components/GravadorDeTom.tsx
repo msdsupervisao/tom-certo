@@ -30,6 +30,10 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const [nivelSinal, setNivelSinal] = useState(0);
   const [avisoBaixaConfianca, setAvisoBaixaConfianca] = useState(false);
   const [erroMicrofone, setErroMicrofone] = useState('');
+  // Medidor ao vivo (feedback + calibração no aparelho real).
+  const [notaAtual, setNotaAtual] = useState('');
+  const [clarityAtual, setClarityAtual] = useState(0);
+  const [amostrasAceitas, setAmostrasAceitas] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -39,7 +43,11 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const DURACAO_GRAVACAO_MS = 6000;
-  const LIMIAR_ESTABILIDADE_ACEITAVEL = 40; // abaixo disso, avisa o usuário
+  const LIMIAR_ESTABILIDADE_ACEITAVEL = 30; // abaixo disso, avisa o usuário
+  // Piso de clarity para um quadro entrar na votação. Baixo de propósito: a
+  // votação já é PONDERADA pela clarity, então quadros mais limpos pesam mais
+  // sem descartar voz real de mic de celular (que raramente passa de ~0.85).
+  const CLARITY_MINIMA_QUADRO = 0.5;
 
   async function iniciarGravacao() {
     try {
@@ -47,13 +55,12 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       setErroMicrofone('');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          // Cancelamento de eco e supressão de ruído DISTORCEM o tom — off.
+          // Sinal cru é o melhor para pitch: qualquer processamento (eco/ruído/
+          // ganho) pode adicionar artefato e derrubar a clarity. O MPM é
+          // normalizado por energia, então funciona bem mesmo em nível baixo.
           echoCancellation: false,
           noiseSuppression: false,
-          // Ganho automático LIGADO: no mic do celular o nível cru é baixo
-          // demais e cairia no corte de silêncio. AGC só muda o volume, não
-          // a frequência, então é seguro e resolve o descarte no mobile.
-          autoGainControl: true,
+          autoGainControl: false,
         },
       });
       streamRef.current = stream;
@@ -71,6 +78,9 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
       historicoNotasRef.current = [];
+      setNotaAtual('');
+      setClarityAtual(0);
+      setAmostrasAceitas(0);
 
       setEstado('gravando');
       loopDeAnalise();
@@ -100,13 +110,18 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
     }
     setNivelSinal(Math.min(pico * 300, 100));
 
-    // Só quadros com tom claro (clarity alta) entram na votação. Guardamos a
-    // CLASSE DE TOM (sem oitava) para um erro de oitava residual não dividir
-    // o voto, e a confiança para ponderar depois.
+    // Guardamos a CLASSE DE TOM (sem oitava) — para um erro de oitava residual
+    // não dividir o voto — e a clarity, para ponderar. Quadros abaixo do piso
+    // são ignorados; os que entram já alimentam o medidor ao vivo.
     if (resultado.motivo === 'ok') {
       const nota = frequenciaParaNota(resultado.frequencia);
       if (nota) {
-        historicoNotasRef.current.push({ nota: nota.nome, confianca: resultado.confianca });
+        setNotaAtual(nota.nome);
+        setClarityAtual(resultado.confianca);
+        if (resultado.confianca >= CLARITY_MINIMA_QUADRO) {
+          historicoNotasRef.current.push({ nota: nota.nome, confianca: resultado.confianca });
+          setAmostrasAceitas(historicoNotasRef.current.length);
+        }
       }
     }
 
@@ -166,8 +181,28 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
             ⏹️ Cantando... toque para parar
           </button>
           <Equalizador nivel={nivelSinal} />
-          <p className="mt-1 text-center text-xs text-text-dim">
-            Cante um trecho da música por alguns segundos
+          <div className="mt-3 flex items-center justify-center gap-4 text-center">
+            <div>
+              <p className="font-display text-3xl font-bold" style={{ color: 'var(--tc-gold)', minWidth: 40 }}>
+                {notaAtual || '—'}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-text-dim">nota</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold tabular-nums" style={{ color: clarityAtual >= 0.5 ? 'var(--turquesa)' : 'var(--tc-txt3)' }}>
+                {Math.round(clarityAtual * 100)}%
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-text-dim">clareza</p>
+            </div>
+            <div>
+              <p className="text-3xl font-bold tabular-nums" style={{ color: 'var(--tc-txt2)' }}>
+                {amostrasAceitas}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-text-dim">amostras</p>
+            </div>
+          </div>
+          <p className="mt-2 text-center text-xs text-text-dim">
+            Cante um trecho firme. A nota e a clareza aparecem acima em tempo real.
           </p>
         </div>
       )}

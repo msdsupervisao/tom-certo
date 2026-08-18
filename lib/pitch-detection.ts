@@ -23,10 +23,10 @@ export interface ResultadoDeteccao {
 // Faixa da voz cantada (grave ~70Hz a falsete ~1100Hz).
 const FREQ_MINIMA = 70;
 const FREQ_MAXIMA = 1100;
-// Abaixo disso o quadro é ruído, não tom. MPM costuma dar >0.9 num tom claro.
-const CLARITY_MINIMA = 0.9;
-// Piso de nível só para pular silêncio real e poupar CPU; o corte fino é a clarity.
-const RMS_MINIMO = 0.005;
+// Piso de nível só para pular silêncio real e poupar CPU. NÃO cortamos por
+// clarity aqui: o motor devolve a clarity e cada chamador decide o limiar
+// (afinador aceita mais frouxo; o "cantar" pondera pela clarity na votação).
+const RMS_MINIMO = 0.004;
 
 // O detector do pitchy é criado para um tamanho de buffer fixo; reaproveitamos
 // entre quadros (recriar a cada frame seria desperdício).
@@ -58,16 +58,11 @@ export function detectarPitch(
   const detector = obterDetector(buffer.length);
   const [frequencia, clarity] = detector.findPitch(buffer, sampleRate);
 
-  if (
-    !frequencia ||
-    frequencia < FREQ_MINIMA ||
-    frequencia > FREQ_MAXIMA ||
-    clarity < CLARITY_MINIMA
-  ) {
+  if (!frequencia || frequencia < FREQ_MINIMA || frequencia > FREQ_MAXIMA) {
     return { frequencia: -1, confianca: clarity ?? 0, motivo: 'sem_pico_claro' };
   }
 
-  return { frequencia, confianca: clarity, motivo: 'ok' };
+  return { frequencia, confianca: clarity ?? 0, motivo: 'ok' };
 }
 
 /**
