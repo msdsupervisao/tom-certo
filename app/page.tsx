@@ -37,6 +37,7 @@ interface ArtistaBusca {
   nome: string;
   slug: string;
   url: string;
+  imagem?: string | null;
 }
 
 type ModoBusca = 'musicas' | 'artistas';
@@ -431,10 +432,21 @@ export default function Home() {
           )}
 
           {modoBusca === 'artistas' && artistaSelecionado && !buscaErro && (
-            <div style={{ marginTop: 10, background: 'rgba(212,160,23,0.08)', border: '0.5px solid rgba(212,160,23,0.28)', borderRadius: 12, padding: '12px 14px' }}>
-              <p style={{ margin: 0, color: 'var(--tc-gold)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Artista selecionado</p>
-              <p style={{ margin: '4px 0 0', color: 'var(--tc-txt)', fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artistaSelecionado.nome}</p>
-              <p style={{ margin: '2px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>{totalMusicasArtista || resultadosBusca.length} músicas encontradas no Cifra Club</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, background: 'rgba(212,160,23,0.08)', border: '0.5px solid rgba(212,160,23,0.28)', borderRadius: 12, padding: '12px 14px' }}>
+              {artistaSelecionado.imagem && (
+                <img
+                  src={artistaSelecionado.imagem}
+                  alt={`Foto de ${artistaSelecionado.nome}`}
+                  width={56}
+                  height={56}
+                  style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '0.5px solid rgba(212,160,23,0.35)' }}
+                />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: 'var(--tc-gold)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Artista selecionado</p>
+                <p style={{ margin: '4px 0 0', color: 'var(--tc-txt)', fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artistaSelecionado.nome}</p>
+                <p style={{ margin: '2px 0 0', color: 'var(--tc-txt2)', fontSize: 12 }}>{totalMusicasArtista || resultadosBusca.length} músicas encontradas no Cifra Club</p>
+              </div>
             </div>
           )}
 

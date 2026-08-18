@@ -12,6 +12,7 @@ interface ArtistaResultado {
   nome: string
   slug: string
   url: string
+  imagem?: string | null
 }
 
 interface BuscaCifraClub {
@@ -38,6 +39,14 @@ interface DocCifraClub {
   a: string   // artista
   d: string   // slug do artista
   u?: string  // slug da música (só existe em música)
+  i?: string  // caminho da foto (ex.: "8/2/7/b/hash-tb.jpg")
+}
+
+/** Monta a URL da foto do artista a partir do campo `i` do Cifra Club.
+ * O `i` vem como thumbnail (`...-tb.jpg`); tiramos o `-tb` para pegar a 250x250. */
+function imagemCifraClub(i?: string): string | null {
+  if (!i) return null
+  return `https://akamai.sscdn.co/letras/250x250/fotos/${i.replace('-tb.jpg', '.jpg')}`
 }
 
 function decodeEntities(s: string): string {
@@ -160,6 +169,7 @@ async function buscarNoCifraClub(q: string): Promise<BuscaCifraClub> {
         nome: d.a || d.m,
         url: `https://www.cifraclub.com.br/${d.d}/`,
         slug: d.d,
+        imagem: imagemCifraClub(d.i),
       }))
 
     return {
