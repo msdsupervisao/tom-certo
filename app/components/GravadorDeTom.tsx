@@ -3,9 +3,9 @@
 
 import { useRef, useState } from 'react';
 import {
-  detectarPitchAutocorrelacao,
-  calcularNotaMaisEstavel,
-  classificarConfianca,
+  detectarPitch,
+  calcularTomPredominante,
+  type AmostraDeTom,
 } from '@/lib/pitch-detection';
 import { frequenciaParaNota, NomeNota } from '@/lib/music-theory';
 
@@ -34,7 +34,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const historicoNotasRef = useRef<string[]>([]);
+  const historicoNotasRef = useRef<AmostraDeTom[]>([]);
   const animationFrameRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,9 +47,13 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       setErroMicrofone('');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          // Cancelamento de eco e supressão de ruído DISTORCEM o tom — off.
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false,
+          // Ganho automático LIGADO: no mic do celular o nível cru é baixo
+          // demais e cairia no corte de silêncio. AGC só muda o volume, não
+          // a frequência, então é seguro e resolve o descarte no mobile.
+          autoGainControl: true,
         },
       });
       streamRef.current = stream;
@@ -57,7 +61,9 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       const audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
+      // 4096 amostras (~93ms @ 44.1kHz): janela longa o bastante para firmar
+      // as vozes graves (~80-110Hz precisam de 2-3 períodos).
+      analyser.fftSize = 4096;
 
       const microfone = audioContext.createMediaStreamSource(stream);
       microfone.connect(analyser);
@@ -86,7 +92,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
     const buffer = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(buffer);
 
-    const resultado = detectarPitchAutocorrelacao(buffer, audioContext.sampleRate);
+    const resultado = detectarPitch(buffer, audioContext.sampleRate);
 
     let pico = 0;
     for (let i = 0; i < buffer.length; i++) {
@@ -94,13 +100,13 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
     }
     setNivelSinal(Math.min(pico * 300, 100));
 
-    if (resultado.frequencia > 0) {
+    // Só quadros com tom claro (clarity alta) entram na votação. Guardamos a
+    // CLASSE DE TOM (sem oitava) para um erro de oitava residual não dividir
+    // o voto, e a confiança para ponderar depois.
+    if (resultado.motivo === 'ok') {
       const nota = frequenciaParaNota(resultado.frequencia);
       if (nota) {
-        historicoNotasRef.current.push(nota.nome + nota.oitava);
-        if (historicoNotasRef.current.length > 60) {
-          historicoNotasRef.current.shift();
-        }
+        historicoNotasRef.current.push({ nota: nota.nome, confianca: resultado.confianca });
       }
     }
 
@@ -115,7 +121,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
 
     setEstado('processando');
 
-    const resultado = calcularNotaMaisEstavel(historicoNotasRef.current);
+    const resultado = calcularTomPredominante(historicoNotasRef.current);
 
     if (!resultado) {
       setAvisoBaixaConfianca(true);
@@ -123,8 +129,8 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       return;
     }
 
-    // Remove o número da oitava, mantendo só o nome da nota (ex: "G4" -> "G")
-    const nomeNotaSemOitava = resultado.nota.replace(/[0-9]/g, '') as NomeNota;
+    // resultado.nota já é a classe de tom (sem oitava), ex.: "G", "C#".
+    const nomeNota = resultado.nota as NomeNota;
 
     if (resultado.estabilidadePercentual < LIMIAR_ESTABILIDADE_ACEITAVEL) {
       setAvisoBaixaConfianca(true);
@@ -133,7 +139,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
     }
 
     setEstado('ocioso');
-    onTomDetectado(nomeNotaSemOitava, resultado.estabilidadePercentual);
+    onTomDetectado(nomeNota, resultado.estabilidadePercentual);
   }
 
   function pararManualmente() {
