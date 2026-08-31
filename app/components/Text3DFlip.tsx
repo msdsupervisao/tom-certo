@@ -76,17 +76,16 @@ export default function Text3DFlip({
     return () => window.clearInterval(timer);
   }, [repeatMs]);
 
-  const words = useMemo(
-    () =>
-      text.split(' ').map((word, wordIndex, allWords) => ({
-        characters: Array.from(word),
-        needsSpace: wordIndex !== allWords.length - 1,
-      })),
-    [text]
-  );
+  const words = useMemo(() => {
+    const parts = text.split(' ');
+    return parts.map((word, wordIndex) => ({
+      characters: Array.from(word),
+      needsSpace: wordIndex !== parts.length - 1,
+      start: parts.slice(0, wordIndex).reduce((total, part) => total + Array.from(part).length, 0),
+    }));
+  }, [text]);
 
-  let offset = 0;
-  const Tag = as as keyof JSX.IntrinsicElements;
+  const Tag = as;
 
   return (
     <Tag
@@ -95,16 +94,13 @@ export default function Text3DFlip({
       aria-label={ariaLabel ?? text}
     >
       {words.map((word, wordIndex) => {
-        const start = offset;
-        offset += word.characters.length;
-
         return (
-          <span className="tc-flip-word" key={`${wordIndex}-${start}`} aria-hidden="true">
+          <span className="tc-flip-word" key={`${wordIndex}-${word.start}`} aria-hidden="true">
             {word.characters.map((char, charIndex) => (
               <CharBox
-                key={`${cycle}-${start}-${charIndex}-${char}`}
+                key={`${cycle}-${word.start}-${charIndex}-${char}`}
                 char={char}
-                index={start + charIndex}
+                index={word.start + charIndex}
                 color={color}
                 flipColor={flipColor}
                 rotateDirection={rotateDirection}

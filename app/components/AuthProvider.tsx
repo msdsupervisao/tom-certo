@@ -29,22 +29,37 @@ async function migrarFavoritosParaNuvem() {
     if (!Array.isArray(itens) || itens.length === 0) return;
 
     let migradosComSucesso = 0;
+    const pendentes: unknown[] = [];
     for (const item of itens) {
       try {
-        const id      = typeof item === 'string' ? item : item.id;
-        const titulo  = typeof item === 'string' ? undefined : item.titulo;
-        const artista = typeof item === 'string' ? undefined : item.artista;
-        await adicionarFavoritoNuvem(id, titulo, artista);
-        migradosComSucesso++;
+        const registro = typeof item === 'object' && item !== null
+          ? item as { id?: unknown; titulo?: unknown; artista?: unknown }
+          : null;
+        const id = typeof item === 'string' ? item : registro?.id;
+        if (typeof id !== 'string' || !id) {
+          pendentes.push(item);
+          continue;
+        }
+        const titulo = typeof registro?.titulo === 'string' ? registro.titulo : undefined;
+        const artista = typeof registro?.artista === 'string' ? registro.artista : undefined;
+        const sucesso = await adicionarFavoritoNuvem(id, titulo, artista);
+        if (sucesso) migradosComSucesso++;
+        else pendentes.push(item);
       } catch (itemError) {
         // Continua com o próximo item mesmo se este falhar
         console.warn('[auth] Erro ao migrar item individual:', itemError);
+        pendentes.push(item);
       }
     }
 
-    // Limpa localStorage após migração
-    if (migradosComSucesso > 0) {
+    // Só remove o que realmente chegou à nuvem; falhas continuam disponíveis
+    // localmente para uma tentativa futura.
+    if (pendentes.length === 0) {
       localStorage.removeItem('tom-certo:favoritos');
+    } else {
+      localStorage.setItem('tom-certo:favoritos', JSON.stringify(pendentes));
+    }
+    if (migradosComSucesso > 0) {
       console.log(`[auth] ${migradosComSucesso} favoritos migrados para nuvem`);
     }
   } catch (e) {

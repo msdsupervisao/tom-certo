@@ -9,6 +9,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+const SLUG_VALIDO = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*){1,2}$/i;
+const TAMANHO_MAXIMO_HTML = 2_000_000;
+const TIMEOUT_CIFRA_MS = 8_000;
+
 export interface CifraResult {
   titulo: string;
   artista: string;
@@ -23,6 +27,9 @@ export async function GET(request: NextRequest) {
   if (!slug) {
     return NextResponse.json({ erro: 'slug obrigatório' }, { status: 400 });
   }
+  if (slug.length > 200 || !SLUG_VALIDO.test(slug)) {
+    return NextResponse.json({ erro: 'slug inválido' }, { status: 400 });
+  }
 
   // ?simplificada=1 busca a versão de acordes simplificados do Cifra Club
   // (acordes mais fáceis e sem tablatura), servida em /{slug}/simplificada.html
@@ -34,6 +41,9 @@ export async function GET(request: NextRequest) {
     ? `https://www.cifraclub.com.br/${slug}/simplificada.html`
     : `https://www.cifraclub.com.br/${slug}/`;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_CIFRA_MS);
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -43,6 +53,7 @@ export async function GET(request: NextRequest) {
         Referer: 'https://www.cifraclub.com.br/',
         'Cache-Control': 'no-cache',
       },
+      signal: controller.signal,
       next: { revalidate: 0 },
     });
 
@@ -54,6 +65,9 @@ export async function GET(request: NextRequest) {
     }
 
     const html = await response.text();
+    if (html.length > TAMANHO_MAXIMO_HTML) {
+      return NextResponse.json({ erro: 'A página da cifra excedeu o tamanho esperado' }, { status: 502 });
+    }
     const resultado = parsearCifra(html, slug);
 
     if (!resultado) {
@@ -67,6 +81,8 @@ export async function GET(request: NextRequest) {
       { erro: 'Não foi possível acessar o Cifra Club agora. Tente novamente em alguns segundos.' },
       { status: 503 }
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -94,14 +110,31 @@ function decodeEntities(s: string): string {
     .replace(/&[a-zA-Z]+;/g, (m) => map[m] ?? m)
 }
 
+function extrairTomOriginal(html: string): string | null {
+  const padroes = [
+    /data-anchor=["']--chord-tone["'][^>]*>\s*([A-G][#b]?)\s*<\/button>/i,
+    /Tom(?:<!--[\s\S]{0,20}?-->)?\s*:\s*<\/span>[\s\S]{0,200}?>([A-G][#b]?)\s*<\/button>/i,
+    /\btom:\s*<[^>]+>\s*([A-G][#b]?)\s*<\/[^>]+>/i,
+    /\btom:\s*([A-G][#b]?)\b/i,
+    /\[tom:?\s*([A-G][#b]?)\]/i,
+  ];
+
+  for (const padrao of padroes) {
+    const match = html.match(padrao);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function resolverTomOriginal(tomExtraido: string | null, cifra: string): string | null {
+  if (tomExtraido) return tomExtraido;
+  // Fallback conservador: é melhor usar o primeiro acorde real da cifra do que
+  // assumir C silenciosamente e transpor toda a música pelo intervalo errado.
+  return cifra.match(/\{([A-G][#b]?)/)?.[1] ?? null;
+}
+
 function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplificada'> | null {
-  // --- Tom original ---
-  // Tenta múltiplos padrões para encontrar o tom
-  let tomMatch = html.match(/tom:\s*<[^>]+>([A-G][#b]?)<\/[^>]+>/i)
-    || html.match(/\btom:\s*([A-G][#b]?)\b/i)
-    || html.match(/tom[:\s]+([A-G][#b]?)\b/i)
-    || html.match(/\[tom:?\s*([A-G][#b]?)\]/i);
-  const tomOriginal = tomMatch ? tomMatch[1] : 'C';
+  const tomExtraido = extrairTomOriginal(html);
 
   // --- Título e artista (com decode de entidades HTML) ---
   const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
@@ -144,6 +177,8 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
       if (conteudo.length < 50) return null;
       const cifraFormatada = converterParaFormatoInterno(conteudo.split('\n'));
       if (cifraFormatada.length < 20) return null;
+      const tomOriginal = resolverTomOriginal(tomExtraido, cifraFormatada);
+      if (!tomOriginal) return null;
       return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
     }
     
@@ -154,6 +189,8 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
       if (conteudo.length >= 100) {
         const cifraFormatada = converterParaFormatoInterno(conteudo.split('\n'));
         if (cifraFormatada.length >= 20) {
+          const tomOriginal = resolverTomOriginal(tomExtraido, cifraFormatada);
+          if (!tomOriginal) return null;
           return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
         }
       }
@@ -172,6 +209,9 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
   );
 
   if (cifraFormatada.length < 20) return null;
+
+  const tomOriginal = resolverTomOriginal(tomExtraido, cifraFormatada);
+  if (!tomOriginal) return null;
 
   return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
 }

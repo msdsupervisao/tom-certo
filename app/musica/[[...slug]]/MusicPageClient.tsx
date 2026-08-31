@@ -12,7 +12,7 @@ import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import { useAuth } from '@/app/components/AuthProvider';
 import { adicionarFavoritoNuvem, removerFavoritoNuvem, ehFavoritoNuvem } from '@/lib/favoritos-nuvem';
-import { ArrowLeft, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
+import { ArrowLeft, Headphones, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
 
 interface MusicPageClientProps {
   params: { slug?: string[] };
@@ -49,6 +49,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
 
   useEffect(() => {
     if (!slug) return;
+    const controller = new AbortController();
     setCarregando(true);
     setErro(null);
 
@@ -60,7 +61,9 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
       return;
     }
 
-    fetch(`/api/cifra?slug=${encodeURIComponent(slug)}${simplificada ? '&simplificada=1' : ''}`)
+    fetch(`/api/cifra?slug=${encodeURIComponent(slug)}${simplificada ? '&simplificada=1' : ''}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.erro) {
@@ -71,9 +74,17 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           registrarVisita(slug, data.titulo, data.artista);
         }
       })
-      .catch(() => setErro('Falha ao carregar. Verifique sua conexão.'))
-      .finally(() => setCarregando(false));
-  }, [slug, simplificada]);
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setErro('Falha ao carregar. Verifique sua conexão.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCarregando(false);
+      });
+
+    return () => controller.abort();
+  }, [router, slug, simplificada]);
 
   useEffect(() => {
     if (!user || !slug) return;
@@ -83,12 +94,10 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
   async function toggleFavorito() {
     if (!dados) return;
     if (user) {
-      if (favorito) {
-        await removerFavoritoNuvem(slug);
-      } else {
-        await adicionarFavoritoNuvem(slug, dados.titulo, dados.artista);
-      }
-      setFavorito(!favorito);
+      const sucesso = favorito
+        ? await removerFavoritoNuvem(slug)
+        : await adicionarFavoritoNuvem(slug, dados.titulo, dados.artista);
+      if (sucesso) setFavorito(!favorito);
     } else {
       const novaLista = alternarFavorito(slug, dados.titulo, dados.artista);
       setFavorito(novaLista.some((item) => item.id === slug));
@@ -154,8 +163,8 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
   const spotifySearchUrl = `https://open.spotify.com/search/${encodeURIComponent(`${dados.titulo} ${dados.artista}`)}`;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--tc-bg)' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="music-page-shell" style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--tc-bg)' }}>
+      <div className="music-page-content" style={{ maxWidth: 860, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', flexShrink: 0 }}>
           <button
             onClick={voltar}
@@ -171,11 +180,13 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
-              onClick={() => window.open(spotifySearchUrl, '_blank')}
-              className="tc-press"
-              style={{ padding: '10px 14px', borderRadius: 12, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+              onClick={() => window.open(spotifySearchUrl, '_blank', 'noopener,noreferrer')}
+              className="tc-press music-spotify-button"
+              aria-label="Abrir no Spotify"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minWidth: 44, minHeight: 44, padding: '10px 14px', borderRadius: 12, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
             >
-              Abrir no Spotify
+              <Headphones size={16} />
+              <span className="music-spotify-label">Abrir no Spotify</span>
             </button>
             <button
               onClick={toggleFavorito}
@@ -196,7 +207,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             <button
               onClick={() => window.print()}
               aria-label="Imprimir"
-              className="tc-press"
+              className="tc-press music-print-button"
               style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', color: 'var(--tc-txt2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
             >
               <Printer size={16} />
@@ -244,9 +255,9 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
-              <button onClick={() => setAjusteManual((a) => a - 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>−</button>
+              <button aria-label="Diminuir meio tom" onClick={() => setAjusteManual((a) => a - 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>−</button>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tc-txt2)', minWidth: 38, textAlign: 'center' }}>½ Tom</span>
-              <button onClick={() => setAjusteManual((a) => a + 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>+</button>
+              <button aria-label="Aumentar meio tom" onClick={() => setAjusteManual((a) => a + 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>+</button>
               {semitons !== 0 && (
                 <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-txt3)' }}>✕</button>
               )}
@@ -285,7 +296,7 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           <p style={{ fontSize: 13 }}>{dados.artista} — Tom: {tomAtual}</p>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: 80 }}>
+        <div className="music-cifra-region" style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '16px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
         </div>
       </div>

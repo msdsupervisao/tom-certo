@@ -1,7 +1,7 @@
 // app/components/CifraViewer.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ChordDiagram from '@/app/components/ChordDiagram';
 
 interface CifraViewerProps {
@@ -15,10 +15,11 @@ interface DiagramaAtivo {
   y: number;
 }
 
-const VELOCIDADE_MIN = 0.05;
-const VELOCIDADE_MAX = 0.8;
-const VELOCIDADE_PASSO = 0.05;
+const VELOCIDADE_MIN = 0.1;
+const VELOCIDADE_MAX = 1.5;
+const VELOCIDADE_PASSO = 0.1;
 const VELOCIDADE_INICIAL = 0.2;
+const PIXELS_POR_SEGUNDO = 60;
 
 function isAcorde(palavra: string): boolean {
   return /^[A-G][#b]?(?:M|m|maj|min|dim|aug|sus|add)?[0-9]*(\([^)]*\))?(\/[A-G][#b]?)?$/.test(palavra);
@@ -52,6 +53,8 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const acumuladorRef = useRef(0);
+  const ultimoFrameRef = useRef<number | null>(null);
+  const posicaoRef = useRef({ maximo: 0, progresso: 0 });
 
   const [rolando, setRolando] = useState(false);
   const [velocidade, setVelocidade] = useState(VELOCIDADE_INICIAL);
@@ -72,20 +75,32 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
 
   useEffect(() => {
     if (!rolando) {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
       acumuladorRef.current = 0;
+      ultimoFrameRef.current = null;
       return;
     }
-    function passo() {
+    function passo(timestamp: number) {
       const el = containerRef.current;
       if (el) {
-        acumuladorRef.current += velocidade;
+        const maximo = Math.max(0, el.scrollHeight - el.clientHeight);
+        if (maximo <= 1) {
+          setRolando(false);
+          return;
+        }
+
+        const anterior = ultimoFrameRef.current ?? timestamp;
+        const deltaMs = Math.min(64, timestamp - anterior);
+        ultimoFrameRef.current = timestamp;
+        acumuladorRef.current += velocidade * PIXELS_POR_SEGUNDO * (deltaMs / 1000);
         const inteiro = Math.floor(acumuladorRef.current);
         if (inteiro >= 1) {
-          el.scrollTop += inteiro;
+          el.scrollTop = Math.min(maximo, el.scrollTop + inteiro);
           acumuladorRef.current -= inteiro;
         }
-        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
+        if (maximo - el.scrollTop <= 1) {
+          el.scrollTop = maximo;
           setRolando(false);
           return;
         }
@@ -93,16 +108,46 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
       animationFrameRef.current = requestAnimationFrame(passo);
     }
     animationFrameRef.current = requestAnimationFrame(passo);
-    return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); };
+    return () => {
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      ultimoFrameRef.current = null;
+    };
   }, [rolando, velocidade]);
+
+  // Mantém o mesmo ponto relativo da música quando fonte, cifra ou colunas
+  // mudam. O navegador recalcula a altura e reposicionamos antes de pintar.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const novoMaximo = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (posicaoRef.current.maximo > 0 && novoMaximo > 0) {
+      el.scrollTop = posicaoRef.current.progresso * novoMaximo;
+    }
+
+    const guardarPosicao = () => {
+      const maximo = Math.max(0, el.scrollHeight - el.clientHeight);
+      posicaoRef.current = {
+        maximo,
+        progresso: maximo > 0 ? Math.min(1, el.scrollTop / maximo) : 0,
+      };
+    };
+    guardarPosicao();
+    el.addEventListener('scroll', guardarPosicao, { passive: true });
+    return () => {
+      guardarPosicao();
+      el.removeEventListener('scroll', guardarPosicao);
+    };
+  }, [cifra, duasColunas, tamanhoFonte]);
 
   function ajustarVelocidade(delta: number) {
     setVelocidade(v => Math.round(Math.min(VELOCIDADE_MAX, Math.max(VELOCIDADE_MIN, v + delta)) * 10) / 10);
   }
 
   return (
-    <div className="area-impressao relative overflow-hidden rounded-2xl border border-border bg-panel">
-      <div className="no-print relative z-10 flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <div className="area-impressao relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-panel">
+      <div className="no-print relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <button
           onClick={() => setRolando(r => !r)}
           style={{ background: 'var(--tc-gold)', color: '#0D0D0D' }}
@@ -132,10 +177,15 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
 
       <div
         ref={containerRef}
-        className="relative z-10 max-h-[100vh] overflow-y-auto p-5 font-mono md:p-6"
-        style={{ fontSize: `${tamanhoFonte}px`, lineHeight: 1.7 }}
+        tabIndex={0}
+        aria-label="Cifra com rolagem"
+        className="cifra-scroll relative z-10 min-h-0 flex-1 overflow-auto p-5 font-mono md:p-6"
+        style={{ fontSize: `${tamanhoFonte}px`, lineHeight: 1.7, overscrollBehavior: 'contain', scrollPaddingBottom: '18vh' }}
       >
-        <div style={duasColunas ? { columns: 2, columnGap: '2rem' } : {}}>
+        <div style={duasColunas
+          ? { columns: 2, columnGap: '2rem', paddingBottom: 'max(64px, 18vh)' }
+          : { paddingBottom: 'max(64px, 18vh)' }
+        }>
           {linhas.map((linha, i) => (
             <LinhaDaCifra
               key={i}
@@ -187,13 +237,13 @@ function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
 
     return (
       <div className="mt-3 first:mt-0">
-        <div className="whitespace-pre font-bold" style={{ color: 'var(--tc-gold)' }}>
+        <div className="whitespace-pre-wrap break-words font-bold" style={{ color: 'var(--tc-gold)', overflowWrap: 'anywhere' }}>
           {partes.map((p, i) => p.acorde
             ? <AcordeSpan key={`${i}-${versaoAnim}`} acorde={p.acorde} texto={p.texto} animar={versaoAnim > 0} onHover={onAcordeHover} onLeave={onAcordeLeave} />
             : <span key={i}>{p.texto}</span>
           )}
         </div>
-        <div className="whitespace-pre" style={{ color: 'var(--tc-txt)' }}>{letraLimpa || '\u00A0'}</div>
+        <div className="whitespace-pre-wrap break-words" style={{ color: 'var(--tc-txt)', overflowWrap: 'anywhere' }}>{letraLimpa || '\u00A0'}</div>
       </div>
     );
   }
@@ -203,7 +253,7 @@ function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
     const partes = splitLinhaEmAcordes(linha);
     return (
       <div className="mt-3 first:mt-0">
-        <div className="whitespace-pre font-bold" style={{ color: 'var(--tc-gold)' }}>
+        <div className="whitespace-pre-wrap break-words font-bold" style={{ color: 'var(--tc-gold)', overflowWrap: 'anywhere' }}>
           {partes.map((p, i) => p.acorde
             ? <AcordeSpan key={`${i}-${versaoAnim}`} acorde={p.acorde} texto={p.texto} animar={versaoAnim > 0} onHover={onAcordeHover} onLeave={onAcordeLeave} />
             : <span key={i}>{p.texto}</span>
@@ -214,7 +264,7 @@ function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
   }
 
   // Linha de letra normal
-  return <div className="whitespace-pre" style={{ color: 'var(--tc-txt)' }}>{linha || '\u00A0'}</div>;
+  return <div className="whitespace-pre-wrap break-words" style={{ color: 'var(--tc-txt)', overflowWrap: 'anywhere' }}>{linha || '\u00A0'}</div>;
 }
 
 function AcordeSpan({ acorde, texto, animar, onHover, onLeave }: {

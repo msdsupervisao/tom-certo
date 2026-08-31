@@ -199,7 +199,7 @@ export default function BuscaMusica() {
           ))}
           {resultados.length === 0 && !erro && !carregando && query.length >= 2 && (
             <div style={{ padding: "14px 16px", fontSize: "14px", color: "var(--color-text-secondary, #888)" }}>
-              Nenhuma música encontrada para "{query}"
+              Nenhuma música encontrada para &quot;{query}&quot;
             </div>
           )}
         </div>

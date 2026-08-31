@@ -12,6 +12,7 @@
 // Refs: McLeod & Wyvill (2005); de Cheveigné & Kawahara, YIN (2002).
 
 import { PitchDetector } from 'pitchy';
+import { NOMES_NOTAS, type NomeNota } from './music-theory';
 
 export interface ResultadoDeteccao {
   frequencia: number;
@@ -84,6 +85,93 @@ export interface AmostraDeTom {
   nota: string;
   /** Confiança (clarity) daquele quadro. */
   confianca: number;
+}
+
+// Perfis de tonalidade de Krumhansl-Kessler (tônica no índice 0). Representam
+// a "importância" perceptual de cada grau dentro de uma tonalidade maior/menor.
+const PERFIL_MAIOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const PERFIL_MENOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+const BONUS_CADENCIA_TONICA = 0.1;
+const MARGEM_CONFIANCA_ALTA = 0.12;
+
+function correlacaoPearson(a: number[], b: number[]): number {
+  const n = a.length;
+  const mediaA = a.reduce((s, x) => s + x, 0) / n;
+  const mediaB = b.reduce((s, x) => s + x, 0) / n;
+  let num = 0, denA = 0, denB = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i] - mediaA;
+    const db = b[i] - mediaB;
+    num += da * db;
+    denA += da * da;
+    denB += db * db;
+  }
+  const den = Math.sqrt(denA * denB);
+  return den === 0 ? 0 : num / den;
+}
+
+export interface ResultadoTom {
+  /** Tônica do tom detectado (classe de tom), ex.: "G". */
+  nota: NomeNota;
+  modo: 'maior' | 'menor';
+  /** Combina aderência ao perfil e separação do segundo colocado, 0..100. */
+  confianca: number;
+}
+
+/**
+ * Detecta o TOM de uma melodia cantada pelo algoritmo de Krumhansl-Schmuckler.
+ *
+ * Monta o histograma de classes de tom da voz (ponderado pela clarity de cada
+ * quadro — notas sustentadas pesam mais, como a duração) e correlaciona com os
+ * 24 perfis de tonalidade (12 maiores + 12 menores). Uma pista cadencial leve
+ * favorece a última nota válida como tônica, útil em trechos curtos. Diferente
+ * da "nota mais frequente", isso tolera uma voz que percorre a melodia.
+ * Ref.: Krumhansl & Schmuckler (1990) — método padrão de key-finding em MIR.
+ */
+export function detectarTomDaMelodia(amostras: AmostraDeTom[]): ResultadoTom | null {
+  if (amostras.length === 0) return null;
+
+  const histograma = new Array(12).fill(0);
+  for (const { nota, confianca } of amostras) {
+    const idx = NOMES_NOTAS.indexOf(nota as (typeof NOMES_NOTAS)[number]);
+    if (idx >= 0) histograma[idx] += confianca > 0 ? confianca : 0;
+  }
+  if (histograma.reduce((s, x) => s + x, 0) === 0) return null;
+
+  let notaFinal = -1;
+  for (let i = amostras.length - 1; i >= 0; i--) {
+    notaFinal = NOMES_NOTAS.indexOf(amostras[i].nota as NomeNota);
+    if (notaFinal >= 0) break;
+  }
+
+  const candidatos: Array<{
+    corr: number;
+    pontuacao: number;
+    tonica: number;
+    modo: 'maior' | 'menor';
+  }> = [];
+
+  for (let tonica = 0; tonica < 12; tonica++) {
+    for (const [modo, perfil] of [['maior', PERFIL_MAIOR], ['menor', PERFIL_MENOR]] as const) {
+      // Perfil da tonalidade com essa tônica: peso do grau p = perfil[(p - tônica)].
+      const perfilNaTonica = perfil.map((_, p) => perfil[(p - tonica + 12) % 12]);
+      const corr = correlacaoPearson(histograma, perfilNaTonica);
+      const pontuacao = corr + (tonica === notaFinal ? BONUS_CADENCIA_TONICA : 0);
+      candidatos.push({ corr, pontuacao, tonica, modo });
+    }
+  }
+
+  candidatos.sort((a, b) => b.pontuacao - a.pontuacao);
+  const [melhor, segundo] = candidatos;
+  const margem = Math.max(0, melhor.pontuacao - segundo.pontuacao);
+  const separacao = Math.min(1, margem / MARGEM_CONFIANCA_ALTA);
+  const confianca = Math.max(0, Math.min(1, melhor.corr * 0.8 + separacao * 0.2));
+
+  return {
+    nota: NOMES_NOTAS[melhor.tonica],
+    modo: melhor.modo,
+    confianca: Math.round(confianca * 100),
+  };
 }
 
 /**

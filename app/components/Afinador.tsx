@@ -1,7 +1,7 @@
 // app/components/Afinador.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { detectarPitchAutocorrelacao } from '@/lib/pitch-detection';
 import {
   compararComCordaMaisProxima,
@@ -29,22 +29,51 @@ export default function Afinador({ aberto, onFechar }: AfinadorProps) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const sessaoRef = useRef(0);
 
-  useEffect(() => {
-    if (aberto) {
-      iniciarEscuta();
-    } else {
-      pararEscuta();
+  const pararEscuta = useCallback(() => {
+    sessaoRef.current += 1;
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
-    return () => pararEscuta();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto]);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    analyserRef.current = null;
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      void audioContextRef.current.close();
+    }
+    audioContextRef.current = null;
+    setEscutando(false);
+    setResultado(null);
+  }, []);
 
-  async function iniciarEscuta() {
+  const loop = useCallback(function analisar() {
+    const analyser = analyserRef.current;
+    const audioContext = audioContextRef.current;
+    if (!analyser || !audioContext) return;
+
+    const buffer = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buffer);
+
+    const deteccao = detectarPitchAutocorrelacao(buffer, audioContext.sampleRate);
+    if (deteccao.frequencia > 0 && deteccao.confianca > 0.4) {
+      setResultado(compararComCordaMaisProxima(deteccao.frequencia));
+    }
+
+    animationFrameRef.current = requestAnimationFrame(analisar);
+  }, []);
+
+  const iniciarEscuta = useCallback(async () => {
+    const sessao = ++sessaoRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
+      if (sessao !== sessaoRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -60,33 +89,17 @@ export default function Afinador({ aberto, onFechar }: AfinadorProps) {
       setEscutando(true);
       loop();
     } catch {
-      alert('Não foi possível acessar o microfone.');
+      if (sessao === sessaoRef.current) {
+        setEscutando(false);
+      }
     }
-  }
+  }, [loop]);
 
-  function pararEscuta() {
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
-    if (audioContextRef.current) audioContextRef.current.close();
-    setEscutando(false);
-    setResultado(null);
-  }
-
-  function loop() {
-    const analyser = analyserRef.current;
-    const audioContext = audioContextRef.current;
-    if (!analyser || !audioContext) return;
-
-    const buffer = new Float32Array(analyser.fftSize);
-    analyser.getFloatTimeDomainData(buffer);
-
-    const deteccao = detectarPitchAutocorrelacao(buffer, audioContext.sampleRate);
-    if (deteccao.frequencia > 0 && deteccao.confianca > 0.4) {
-      setResultado(compararComCordaMaisProxima(deteccao.frequencia));
-    }
-
-    animationFrameRef.current = requestAnimationFrame(loop);
-  }
+  useEffect(() => {
+    if (aberto) void iniciarEscuta();
+    else pararEscuta();
+    return pararEscuta;
+  }, [aberto, iniciarEscuta, pararEscuta]);
 
   const corStatus =
     resultado?.status === 'afinada'

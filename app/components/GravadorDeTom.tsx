@@ -1,10 +1,10 @@
 // app/components/GravadorDeTom.tsx
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   detectarPitch,
-  calcularTomPredominante,
+  detectarTomDaMelodia,
   type AmostraDeTom,
 } from '@/lib/pitch-detection';
 import { frequenciaParaNota, NomeNota } from '@/lib/music-theory';
@@ -17,10 +17,8 @@ type Estado = 'ocioso' | 'gravando' | 'processando' | 'resultado';
 
 /**
  * Componente de captura: grava ~6 segundos de áudio, roda a detecção
- * de pitch em tempo real, e ao final calcula a nota mais ESTÁVEL
- * (moda das amostras), não um instante isolado. Isso é o que mitiga
- * a faixa de 70-90% de acerto medida no teste: se uma amostra falhar,
- * as outras 100+ no histórico ainda carregam o resultado.
+ * de pitch em tempo real e, ao final, estima a tonalidade a partir do
+ * conjunto de notas da melodia — nunca de um instante isolado.
  *
  * Quando a estabilidade fica baixa, o usuário recebe feedback claro
  * em vez do app cravar um tom errado silenciosamente.
@@ -34,8 +32,8 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const [notaAtual, setNotaAtual] = useState('');
   const [clarityAtual, setClarityAtual] = useState(0);
   const [amostrasAceitas, setAmostrasAceitas] = useState(0);
-  // Resultado final visível (nota + estabilidade), para o usuário confirmar.
-  const [resultadoFinal, setResultadoFinal] = useState<{ nota: NomeNota; estabilidade: number } | null>(null);
+  // Resultado final visível (nota + modo + confiança), para o usuário confirmar.
+  const [resultadoFinal, setResultadoFinal] = useState<{ nota: NomeNota; modo: 'maior' | 'menor'; estabilidade: number } | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -44,8 +42,29 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   const animationFrameRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const liberarRecursos = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    analyserRef.current = null;
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      void audioContextRef.current.close();
+    }
+    audioContextRef.current = null;
+  }, []);
+
+  useEffect(() => liberarRecursos, [liberarRecursos]);
+
   const DURACAO_GRAVACAO_MS = 6000;
-  const LIMIAR_ESTABILIDADE_ACEITAVEL = 30; // abaixo disso, avisa o usuário
+  // Correlação de Krumhansl-Schmuckler: match bom ~70-85%, ambíguo ~50-60.
+  const LIMIAR_ESTABILIDADE_ACEITAVEL = 55; // abaixo disso, sinaliza ambiguidade
   // Piso de clarity para um quadro entrar na votação. Baixo de propósito: a
   // votação já é PONDERADA pela clarity, então quadros mais limpos pesam mais
   // sem descartar voz real de mic de celular (que raramente passa de ~0.85).
@@ -91,6 +110,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
         finalizarGravacao();
       }, DURACAO_GRAVACAO_MS);
     } catch {
+      liberarRecursos();
       setEstado('ocioso');
       setErroMicrofone('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
     }
@@ -131,14 +151,14 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   }
 
   function finalizarGravacao() {
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
-    if (audioContextRef.current) audioContextRef.current.close();
+    liberarRecursos();
 
     setEstado('processando');
 
-    const resultado = calcularTomPredominante(historicoNotasRef.current);
+    // Tom da melodia por Krumhansl-Schmuckler (robusto a voz que passa por
+    // várias notas). Não decidimos sozinhos: mostramos o tom + confiança e o
+    // usuário confirma (Aplicar) ou canta de novo.
+    const resultado = detectarTomDaMelodia(historicoNotasRef.current);
 
     if (!resultado) {
       setResultadoFinal(null);
@@ -147,10 +167,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       return;
     }
 
-    // resultado.nota já é a classe de tom (sem oitava), ex.: "G", "C#".
-    // Não decidimos sozinhos: mostramos o que foi detectado + a estabilidade
-    // e deixamos o usuário confirmar (Aplicar) ou cantar de novo.
-    setResultadoFinal({ nota: resultado.nota as NomeNota, estabilidade: resultado.estabilidadePercentual });
+    setResultadoFinal({ nota: resultado.nota, modo: resultado.modo, estabilidade: resultado.confianca });
     setAvisoBaixaConfianca(false);
     setEstado('resultado');
   }
@@ -174,7 +191,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
       {estado === 'ocioso' && (
         <button
           onClick={iniciarGravacao}
-          className="w-full rounded-xl bg-violeta py-4 text-base font-semibold text-white transition hover:opacity-90"
+          className="w-full rounded-xl bg-violeta py-4 text-base font-semibold text-[#0D0D0D] transition hover:opacity-90"
         >
           🎙️ Cantar para ajustar o tom
         </button>
@@ -210,7 +227,7 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
             </div>
           </div>
           <p className="mt-2 text-center text-xs text-text-dim">
-            Segure <strong>uma nota só</strong> (ex.: cante &quot;aaah&quot;) num tom confortável. A nota e a clareza aparecem acima em tempo real.
+            Cante um trecho da música num tom confortável. A nota e a clareza aparecem acima em tempo real.
           </p>
         </div>
       )}
@@ -223,16 +240,16 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
 
       {estado === 'resultado' && resultadoFinal && (
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-wider text-text-dim">Tom detectado</p>
+          <p className="text-[11px] uppercase tracking-wider text-text-dim">Seu tom</p>
           <p className="font-display text-6xl font-bold" style={{ color: 'var(--tc-gold)', lineHeight: 1.1 }}>
             {resultadoFinal.nota}
           </p>
           <p className="mt-1 text-sm" style={{ color: resultadoFinal.estabilidade >= LIMIAR_ESTABILIDADE_ACEITAVEL ? 'var(--turquesa)' : 'var(--amarelo)' }}>
-            estabilidade {resultadoFinal.estabilidade}%
+            {resultadoFinal.modo} · confiança {resultadoFinal.estabilidade}%
           </p>
           {resultadoFinal.estabilidade < LIMIAR_ESTABILIDADE_ACEITAVEL && (
             <p className="mx-auto mt-2 max-w-xs text-xs text-text-dim">
-              A voz variou bastante. Para um resultado firme, segure <strong>uma nota só</strong> (sem melodia) por alguns segundos.
+              Ficou meio ambíguo. Cante um trecho um pouco mais longo e com a melodia bem marcada, ou ajuste o ½ tom na mão.
             </p>
           )}
           <div className="mt-4 flex gap-2">

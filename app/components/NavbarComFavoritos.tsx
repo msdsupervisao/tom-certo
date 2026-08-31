@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from '@/app/components/ThemeToggle';
 import PainelFavoritos from '@/app/components/PainelFavoritos';
 import { useAuth } from '@/app/components/AuthProvider';
@@ -97,7 +98,7 @@ export default function NavbarComFavoritos() {
               onClick={entrarComGoogle}
               style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: '#fff', color: '#333', fontWeight: 700, fontSize: 14, border: '1px solid #ddd', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 16 }}
             >
-              <img src="https://www.google.com/favicon.ico" width={18} height={18} alt="Google" />
+              <Image src="https://www.google.com/favicon.ico" width={18} height={18} alt="" />
               Entrar com Google
             </button>
 

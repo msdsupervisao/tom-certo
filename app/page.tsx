@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { buscarMusicaPorId } from '@/lib/data/songs-mock';
@@ -10,6 +11,12 @@ import {
   obterMusicasVisitadas, MusicaVisitada, registrarDeteccao, registrarVisita,
 } from '@/lib/historico-local';
 import { salvarENotificar, escutarStorage } from '@/lib/storage-events';
+import {
+  adicionarFavoritoNuvem,
+  obterFavoritosNuvem,
+  removerFavoritoNuvem,
+  type ItemFavorito,
+} from '@/lib/favoritos-nuvem';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import BottomNav from '@/app/components/BottomNav';
@@ -27,6 +34,7 @@ function glowMove(e: React.MouseEvent<HTMLElement>) {
 import type { NomeNota } from '@/lib/music-theory';
 
 const CACHE_CAPAS: Record<string, string> = {};
+const CHAVE_BUSCA_HOME = 'tom-certo:busca-home';
 
 interface FavItem {
   id: string;
@@ -51,6 +59,40 @@ interface ArtistaBusca {
 }
 
 type ModoBusca = 'musicas' | 'artistas';
+
+interface BuscaPersistida {
+  modo: ModoBusca;
+  query: string;
+  artistaSlug?: string;
+}
+
+function normalizarFavorito(item: string | ItemFavorito): FavItem {
+  const id = typeof item === 'string' ? item : item.id;
+  const mockSong = buscarMusicaPorId(id);
+  if (mockSong) {
+    return {
+      id,
+      titulo: mockSong.titulo,
+      artista: mockSong.artista,
+      slug: id,
+      isMock: true,
+    };
+  }
+  return {
+    id,
+    titulo: typeof item === 'string' ? undefined : item.titulo,
+    artista: typeof item === 'string' ? undefined : item.artista,
+    slug: id,
+    isMock: false,
+  };
+}
+
+function salvarBuscaPersistida(busca: BuscaPersistida | null) {
+  try {
+    if (busca) sessionStorage.setItem(CHAVE_BUSCA_HOME, JSON.stringify(busca));
+    else sessionStorage.removeItem(CHAVE_BUSCA_HOME);
+  } catch {}
+}
 
 function saudacaoDoDia(): string {
   const h = new Date().getHours();
@@ -81,6 +123,7 @@ export default function Home() {
   const buscaInputRef = useRef<HTMLInputElement>(null);
   const buscaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buscaSeqRef = useRef(0);
+  const buscaRestauradaRef = useRef(false);
 
   const primeiroNome = user?.user_metadata?.full_name?.trim()?.split(' ')[0]
     || user?.email?.split('@')[0]?.replace(/[\d_.-]/g, '')
@@ -91,35 +134,40 @@ export default function Home() {
     : saudacao;
   const inicialAvatar = primeiroNome ? primeiroNome.charAt(0).toUpperCase() : '?';
 
-  function recarregarDados() {
+  const recarregarDados = useCallback(() => {
     setPerfil({
       tom:      obterTomMaisFrequente(),
       precisao: obterPrecisaoMedia(),
       total:    obterTotalAnalises(),
     });
+    setVisitadas(obterMusicasVisitadas(12));
+
+    if (user) {
+      void obterFavoritosNuvem().then((lista) => {
+        setFavoritos(lista.map((item) => item.id));
+        setFavoritosCompletos(lista.map(normalizarFavorito));
+      });
+      return;
+    }
+
     try {
       const raw = localStorage.getItem('tom-certo:favoritos');
       if (!raw) { setFavoritos([]); setFavoritosCompletos([]); }
       else {
-        const parsed = JSON.parse(raw);
-        const ids    = parsed.map((x: any) => typeof x === 'string' ? x : x.id);
-        setFavoritos(ids);
-        const itens = parsed.map((x: any) => {
-          const id       = typeof x === 'string' ? x : x.id;
-          const mockSong = buscarMusicaPorId(id);
-          if (mockSong) return { id, titulo: mockSong.titulo, artista: mockSong.artista, slug: id, isMock: true };
-          return { id, titulo: x.titulo, artista: x.artista, slug: id, isMock: false };
-        });
-        setFavoritosCompletos(itens);
+        const parsed = JSON.parse(raw) as Array<string | ItemFavorito>;
+        setFavoritos(parsed.map((item) => typeof item === 'string' ? item : item.id));
+        setFavoritosCompletos(parsed.map(normalizarFavorito));
       }
-      setVisitadas(obterMusicasVisitadas(12));
-    } catch { setFavoritos([]); }
-  }
+    } catch {
+      setFavoritos([]);
+      setFavoritosCompletos([]);
+    }
+  }, [user]);
 
   useEffect(() => {
     recarregarDados();
     return escutarStorage(recarregarDados);
-  }, [pathname]);
+  }, [pathname, recarregarDados]);
 
   useEffect(() => {
     return () => {
@@ -151,11 +199,19 @@ export default function Home() {
       const data = await res.json();
       if (seq !== buscaSeqRef.current) return;
       if (!res.ok) throw new Error(data.erro || 'Busca indisponível');
+      const selecionado = data.artistaSelecionado && typeof data.artistaSelecionado.slug === 'string'
+        ? data.artistaSelecionado as ArtistaBusca
+        : null;
       setResultadosBusca(Array.isArray(data.resultados) ? data.resultados : []);
       setArtistasBusca(Array.isArray(data.artistas) ? data.artistas : []);
-      setArtistaSelecionado(data.artistaSelecionado || null);
+      setArtistaSelecionado(selecionado);
       setTotalMusicasArtista(Number(data.totalMusicasArtista || 0));
       setBuscaFeita(true);
+      salvarBuscaPersistida({
+        modo,
+        query: termo,
+        artistaSlug: modo === 'artistas' ? selecionado?.slug || artistaSlug || undefined : undefined,
+      });
     } catch (erro) {
       if (seq !== buscaSeqRef.current) return;
       setResultadosBusca([]);
@@ -169,6 +225,31 @@ export default function Home() {
     }
   }, [modoBusca]);
 
+  useEffect(() => {
+    if (buscaRestauradaRef.current) return;
+    buscaRestauradaRef.current = true;
+
+    try {
+      const raw = sessionStorage.getItem(CHAVE_BUSCA_HOME);
+      if (!raw) return;
+      const salva = JSON.parse(raw) as Partial<BuscaPersistida>;
+      if ((salva.modo !== 'musicas' && salva.modo !== 'artistas') || typeof salva.query !== 'string' || salva.query.trim().length < 2) {
+        salvarBuscaPersistida(null);
+        return;
+      }
+
+      setModoBusca(salva.modo);
+      setBuscaQuery(salva.query);
+      void buscarNaHome(
+        salva.query,
+        salva.modo,
+        typeof salva.artistaSlug === 'string' ? salva.artistaSlug : ''
+      );
+    } catch {
+      salvarBuscaPersistida(null);
+    }
+  }, [buscarNaHome]);
+
   function handleTomDetectado(nota: NomeNota, estabilidade: number) {
     registrarDeteccao('_home', nota, estabilidade);
     setTomDetectado(nota);
@@ -181,15 +262,31 @@ export default function Home() {
     });
   }
 
-  function toggleFav(id: string, titulo?: string, artista?: string) {
+  async function toggleFav(id: string, titulo?: string, artista?: string) {
+    const existe = favoritos.includes(id);
+
+    if (user) {
+      const sucesso = existe
+        ? await removerFavoritoNuvem(id)
+        : await adicionarFavoritoNuvem(id, titulo, artista);
+      if (!sucesso) return;
+
+      setFavoritos((atuais) => existe ? atuais.filter((item) => item !== id) : [id, ...atuais]);
+      setFavoritosCompletos((atuais) => existe
+        ? atuais.filter((item) => item.id !== id)
+        : [normalizarFavorito({ id, titulo, artista }), ...atuais.filter((item) => item.id !== id)]
+      );
+      return;
+    }
+
     try {
       const raw    = localStorage.getItem('tom-certo:favoritos');
-      const atual: Array<{ id: string; titulo?: string; artista?: string }> = raw ? JSON.parse(raw) : [];
-      const norm   = atual.map((x: any) => typeof x === 'string' ? { id: x } : x);
-      const existe = norm.some((x: any) => x.id === id);
-      const nova   = existe ? norm.filter((x: any) => x.id !== id) : [...norm, { id, titulo, artista }];
+      const atual: Array<string | ItemFavorito> = raw ? JSON.parse(raw) : [];
+      const norm = atual.map((item) => typeof item === 'string' ? { id: item } : item);
+      const nova = existe ? norm.filter((item) => item.id !== id) : [{ id, titulo, artista }, ...norm];
       salvarENotificar('tom-certo:favoritos', JSON.stringify(nova));
-      setFavoritos(nova.map((x: any) => x.id));
+      setFavoritos(nova.map((item) => item.id));
+      setFavoritosCompletos(nova.map(normalizarFavorito));
     } catch {}
   }
 
@@ -202,6 +299,7 @@ export default function Home() {
     const valor = event.target.value;
     const termo = valor.trim();
     setBuscaQuery(valor);
+    salvarBuscaPersistida({ modo: modoBusca, query: valor });
     buscaSeqRef.current += 1;
     if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
 
@@ -236,12 +334,14 @@ export default function Home() {
     setBuscaFeita(false);
     setBuscaErro('');
     setBuscaCarregando(false);
+    salvarBuscaPersistida(null);
     buscaInputRef.current?.focus();
   }
 
   function trocarModoBusca(modo: ModoBusca) {
     if (modo === modoBusca) return;
     setModoBusca(modo);
+    salvarBuscaPersistida({ modo, query: buscaQuery });
     if (buscaTimerRef.current) clearTimeout(buscaTimerRef.current);
     buscaSeqRef.current += 1;
     setResultadosBusca([]);
@@ -266,10 +366,16 @@ export default function Home() {
     setArtistaSelecionado(artista);
     setResultadosBusca([]);
     setTotalMusicasArtista(0);
+    salvarBuscaPersistida({ modo: 'artistas', query: buscaQuery || artista.nome, artistaSlug: artista.slug });
     buscarNaHome(buscaQuery || artista.nome, 'artistas', artista.slug);
   }
 
   function abrirResultadoBusca(resultado: ResultadoBusca) {
+    salvarBuscaPersistida({
+      modo: modoBusca,
+      query: buscaQuery,
+      artistaSlug: modoBusca === 'artistas' ? artistaSelecionado?.slug : undefined,
+    });
     registrarVisita(resultado.slug, resultado.titulo, resultado.artista);
     router.push(`/musica/${resultado.slug}`);
   }
@@ -431,6 +537,7 @@ export default function Home() {
             <Search size={18} style={{ color: 'var(--tc-txt3)', flexShrink: 0 }} />
             <input
               ref={buscaInputRef}
+              aria-label={modoBusca === 'artistas' ? 'Buscar artista' : 'Buscar música'}
               value={buscaQuery}
               onChange={handleBuscaChange}
               placeholder={modoBusca === 'artistas' ? 'Buscar artista...' : 'Buscar música...'}
@@ -460,7 +567,7 @@ export default function Home() {
           {modoBusca === 'artistas' && artistaSelecionado && !buscaErro && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, background: 'rgba(212,160,23,0.08)', border: '0.5px solid rgba(212,160,23,0.28)', borderRadius: 12, padding: '12px 14px' }}>
               {artistaSelecionado.imagem && (
-                <img
+                <Image
                   src={artistaSelecionado.imagem}
                   alt={`Foto de ${artistaSelecionado.nome}`}
                   width={56}
@@ -502,25 +609,43 @@ export default function Home() {
             <div style={{ marginTop: 10 }}>
               <StripLabel label={modoBusca === 'artistas' ? 'Músicas do artista' : 'Resultados relevantes'} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {resultadosBusca.map((resultado, index) => (
-                  <button
-                    key={`${resultado.slug}-${index}`}
-                    onClick={() => abrirResultadoBusca(resultado)}
-                    className="tc-lift tc-press"
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', color: 'var(--tc-txt)' }}
-                  >
-                    <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(212,160,23,0.12)', color: 'var(--tc-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Music size={16} />
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.titulo}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--tc-txt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.artista}</p>
-                    </span>
-                    <span style={{ flexShrink: 0, color: index === 0 && modoBusca === 'musicas' ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      {modoBusca === 'artistas' ? `#${index + 1}` : index === 0 ? 'Mais relevante' : `#${index + 1}`}
-                    </span>
-                  </button>
-                ))}
+                {resultadosBusca.map((resultado, index) => {
+                  const favorito = favoritos.includes(resultado.slug);
+                  return (
+                    <div
+                      key={`${resultado.slug}-${index}`}
+                      className="tc-lift"
+                      style={{ display: 'flex', alignItems: 'stretch', width: '100%', background: 'var(--tc-s1)', border: '0.5px solid var(--tc-border)', borderRadius: 12, overflow: 'hidden' }}
+                    >
+                      <button
+                        onClick={() => abrirResultadoBusca(resultado)}
+                        className="tc-press"
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 'none', padding: '12px 10px 12px 14px', cursor: 'pointer', color: 'var(--tc-txt)' }}
+                      >
+                        <span style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(212,160,23,0.12)', color: 'var(--tc-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Music size={16} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--tc-txt)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.titulo}</span>
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: 'var(--tc-txt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resultado.artista}</span>
+                        </span>
+                        <span style={{ flexShrink: 0, color: index === 0 && modoBusca === 'musicas' ? 'var(--tc-gold)' : 'var(--tc-txt3)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          {modoBusca === 'artistas' ? `#${index + 1}` : index === 0 ? 'Mais relevante' : `#${index + 1}`}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleFav(resultado.slug, resultado.titulo, resultado.artista)}
+                        aria-label={favorito ? `Remover ${resultado.titulo} dos favoritos` : `Favoritar ${resultado.titulo}`}
+                        aria-pressed={favorito}
+                        className="tc-press"
+                        style={{ width: 52, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: favorito ? 'rgba(212,160,23,0.12)' : 'transparent', border: 'none', borderLeft: '0.5px solid var(--tc-border)', color: favorito ? 'var(--tc-gold)' : 'var(--tc-txt3)', cursor: 'pointer' }}
+                      >
+                        <Heart size={18} fill={favorito ? 'currentColor' : 'none'} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

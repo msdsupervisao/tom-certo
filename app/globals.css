@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
    TOM CERTO — DESIGN SYSTEM v2
@@ -183,6 +183,14 @@ html, body {
   }
 }
 
+/* Cabeçalho da cifra: preserva o título em telas estreitas. */
+@media (max-width: 520px) {
+  .music-spotify-label,
+  .music-print-button {
+    display: none !important;
+  }
+}
+
 .tc-flip-text {
   display: inline-flex;
   flex-wrap: wrap;
@@ -270,10 +278,17 @@ html, body {
 @media print {
   .no-print { display: none !important; }
   body { background: white !important; color: black !important; }
-  .area-impressao { border: none !important; background: white !important; }
-  .area-impressao .relative.z-10.max-h-\[100vh\],
-  .area-impressao .relative.z-10.overflow-y-auto {
+  .music-page-shell,
+  .music-page-content,
+  .music-cifra-region,
+  .area-impressao,
+  .cifra-scroll {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
     max-height: none !important;
     overflow: visible !important;
   }
+  .music-cifra-region { padding: 0 !important; }
+  .area-impressao { border: none !important; background: white !important; }
 }

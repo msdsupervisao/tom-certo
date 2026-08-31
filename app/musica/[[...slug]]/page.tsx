@@ -3,11 +3,12 @@ import { buscarMusicaPorId } from '@/lib/data/songs-mock';
 import MusicPageClient from './MusicPageClient';
 
 interface PageProps {
-  params: { slug?: string[] };
+  params: Promise<{ slug?: string[] }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const slugParts = Array.isArray(params.slug) ? params.slug : params.slug ? [params.slug] : [];
+  const { slug: slugParam } = await params;
+  const slugParts = Array.isArray(slugParam) ? slugParam : slugParam ? [slugParam] : [];
   const slug = slugParts.join('/');
   const mock = slug ? buscarMusicaPorId(slug) : null;
 
@@ -32,6 +33,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default function MusicaPage({ params }: PageProps) {
-  return <MusicPageClient params={params} />;
+export default async function MusicaPage({ params }: PageProps) {
+  return <MusicPageClient params={await params} />;
 }

@@ -57,8 +57,8 @@ export default function FavoritasPage() {
 
   async function removerFavorito(id: string) {
     if (user) {
-      await removerFavoritoNuvem(id);
-      setFavoritos(prev => prev.filter(f => f.id !== id));
+      const sucesso = await removerFavoritoNuvem(id);
+      if (sucesso) setFavoritos(prev => prev.filter(f => f.id !== id));
     } else {
       try {
         const raw = localStorage.getItem('tom-certo:favoritos');

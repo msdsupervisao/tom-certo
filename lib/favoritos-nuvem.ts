@@ -36,9 +36,9 @@ export async function adicionarFavoritoNuvem(
   id: string,
   titulo?: string,
   artista?: string
-): Promise<void> {
+): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return false;
 
   const { error } = await supabase.from('favoritos').upsert({
     user_id: user.id,
@@ -47,18 +47,26 @@ export async function adicionarFavoritoNuvem(
     artista,
   });
 
-  if (error) logError('adicionarFavoritoNuvem', error);
+  if (error) {
+    logError('adicionarFavoritoNuvem', error);
+    return false;
+  }
+  return true;
 }
 
-export async function removerFavoritoNuvem(id: string): Promise<void> {
+export async function removerFavoritoNuvem(id: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return false;
 
   const { error } = await supabase.from('favoritos').delete()
     .eq('musica_id', id)
     .eq('user_id', user.id);
 
-  if (error) logError('removerFavoritoNuvem', error);
+  if (error) {
+    logError('removerFavoritoNuvem', error);
+    return false;
+  }
+  return true;
 }
 
 export async function ehFavoritoNuvem(id: string): Promise<boolean> {

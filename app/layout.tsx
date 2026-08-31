@@ -17,8 +17,6 @@ export const viewport: Viewport = {
   themeColor: '#D4A017',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -119,9 +117,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <div className="layout-wrapper">
             <div className="lateral" />
-            <div className="layout-center">
+            <main className="layout-center">
               {children}
-            </div>
+            </main>
             <div className="lateral" />
           </div>
         </AuthProvider>

@@ -23,6 +23,9 @@ interface BuscaCifraClub {
 
 const CACHE_TTL = 1000 * 60 * 60
 const ARTIST_CACHE_TTL = 1000 * 60 * 60 * 6
+const MAX_SEARCH_CACHE = 200
+const MAX_ARTIST_CACHE = 50
+const MAX_QUERY_LENGTH = 80
 const searchCache = new Map<string, { ts: number; payload: any }>()
 const artistSongsCache = new Map<string, { ts: number; resultados: Resultado[] }>()
 
@@ -32,6 +35,16 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 // e já devolve o slug real de cada música — sem chutar slug nem depender do iTunes.
 // A resposta vem embrulhada em parênteses tipo `({ ... })`.
 const CIFRACLUB_SEARCH = 'https://solr.sscdn.co/cc/h2/'
+
+function salvarNoCache<T>(cache: Map<string, T>, key: string, valor: T, limite: number) {
+  if (cache.has(key)) cache.delete(key)
+  while (cache.size >= limite) {
+    const maisAntiga = cache.keys().next().value as string | undefined
+    if (!maisAntiga) break
+    cache.delete(maisAntiga)
+  }
+  cache.set(key, valor)
+}
 
 interface DocCifraClub {
   t: string   // "1" = artista, "2" = música
@@ -227,7 +240,7 @@ async function buscarMusicasDoArtista(artista: ArtistaResultado): Promise<Result
     }
 
     const unicos = deduplicarResultados(resultados, 500)
-    artistSongsCache.set(artista.slug, { ts: Date.now(), resultados: unicos })
+    salvarNoCache(artistSongsCache, artista.slug, { ts: Date.now(), resultados: unicos }, MAX_ARTIST_CACHE)
     return unicos
   } finally {
     clearTimeout(timeout)
@@ -236,14 +249,18 @@ async function buscarMusicasDoArtista(artista: ArtistaResultado): Promise<Result
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const q = searchParams.get('q')?.trim() || ''
+  const q = (searchParams.get('q') || '').trim().replace(/\s+/g, ' ')
   const modo = searchParams.get('modo') === 'artistas' ? 'artistas' : 'musicas'
   const artistaSlug = searchParams.get('artista')?.trim() || ''
-  const key = `${modo}:${q.toLowerCase()}:${artistaSlug}`
 
   if (q.length < 2) {
     return NextResponse.json({ resultados: [], artistas: [], totalEncontrado: 0 })
   }
+  if (q.length > MAX_QUERY_LENGTH || artistaSlug.length > 100) {
+    return NextResponse.json({ erro: 'Busca muito longa' }, { status: 400 })
+  }
+
+  const key = `${modo}:${q.toLowerCase()}:${artistaSlug}`
 
   const cached = searchCache.get(key)
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
@@ -257,7 +274,7 @@ export async function GET(request: NextRequest) {
       const artistaSelecionado = busca.artistas.find((artista) => artista.slug === artistaSlug) || busca.artistas[0]
       if (!artistaSelecionado) {
         const payload = { resultados: [], artistas: [], totalEncontrado: busca.totalEncontrado }
-        searchCache.set(key, { ts: Date.now(), payload })
+        salvarNoCache(searchCache, key, { ts: Date.now(), payload }, MAX_SEARCH_CACHE)
         return NextResponse.json(payload)
       }
       const resultados = await buscarMusicasDoArtista(artistaSelecionado)
@@ -268,7 +285,7 @@ export async function GET(request: NextRequest) {
         totalMusicasArtista: resultados.length,
         totalEncontrado: busca.totalEncontrado,
       }
-      searchCache.set(key, { ts: Date.now(), payload })
+      salvarNoCache(searchCache, key, { ts: Date.now(), payload }, MAX_SEARCH_CACHE)
       return NextResponse.json(payload)
     }
     if (busca.resultados.length > 0) {
@@ -277,7 +294,7 @@ export async function GET(request: NextRequest) {
         artistas: busca.artistas,
         totalEncontrado: busca.totalEncontrado,
       }
-      searchCache.set(key, { ts: Date.now(), payload })
+      salvarNoCache(searchCache, key, { ts: Date.now(), payload }, MAX_SEARCH_CACHE)
       return NextResponse.json(payload)
     }
   } catch (erro) {
@@ -304,7 +321,7 @@ export async function GET(request: NextRequest) {
       slug: m.slug,
     }))
     const payload = { resultados, artistas: [], totalEncontrado: resultados.length }
-    searchCache.set(key, { ts: Date.now(), payload })
+    salvarNoCache(searchCache, key, { ts: Date.now(), payload }, MAX_SEARCH_CACHE)
     return NextResponse.json(payload)
   }
 
