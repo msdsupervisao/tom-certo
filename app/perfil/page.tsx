@@ -54,9 +54,10 @@ export default function PerfilPage() {
 
         <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
           <StatPill num={String(totalVisitadas)} label="Músicas" />
-          <StatPill num={tom || '—'} label="Meu tom" />
+          <StatPill num={tom || '—'} label="Tom mais usado" />
           <StatPill num={String(totalAnalises)} label="Análises" />
         </div>
+        <p style={{ fontSize: 12, color: 'var(--tc-txt2)', marginTop: 12 }}>Histórico e ajustes salvos neste navegador. O tom mais usado se refere aos trechos analisados.</p>
       </div>
 
       {/* Menu */}

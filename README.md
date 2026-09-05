@@ -1,27 +1,31 @@
 # Tom Certo
 
-Cante um trecho, receba a cifra no seu tom — sem ficar adivinhando capotraste.
+Busque uma cifra, cante um trecho e salve um tom confortável para cada música.
 
 **No ar:** https://tom-certo.vercel.app
 
 ## O que é
 
-App web que resolve um problema real de quem canta e toca: você canta um trecho,
-o app **detecta o seu tom vocal** pelo microfone e devolve a **cifra já transposta**
-para o tom certo — em vez de você ficar testando capotraste no chute. A proposta
-central é *detectar o tom*, não apenas *buscar cifra*.
+App web para quem toca e canta: escolha uma música, cante um trecho pelo microfone
+e aplique a **sugestão de tonalidade** à cifra. Confira o resultado cantando,
+ajuste em semitons e salve suas preferências para o próximo ensaio.
+A estimativa se refere ao trecho cantado; a confiança exibida é um indicador do
+algoritmo. O áudio é analisado no dispositivo.
 
 ## Estado atual
 
-App publicado e funcional. Principais recursos implementados e testados:
+Principais recursos da versão neste repositório:
 
 - ✅ **Busca de música** com catálogo curado (104 músicas com slug do Cifra Club) +
   fallback no iTunes, que confirma se a cifra existe no Cifra Club antes de exibir
 - ✅ **Cifra real do Cifra Club**: as rotas de API buscam e fazem parse da cifra ao
   vivo (nada é armazenado — cada request é um fetch novo)
-- ✅ **Detecção de tom cantado** por autocorrelação (~70–90% de acerto em condições reais)
-- ✅ **Transposição automática de cifra** (14/14 testes de lógica, incluindo acordes
-  com baixo de inversão e bemóis)
+- ✅ **Estimativa de tonalidade do trecho** com McLeod Pitch Method (`pitchy`) e
+  análise da distribuição das notas da melodia
+- ✅ **Transposição de cifra** incluindo introduções, linhas instrumentais,
+  extensões, baixos de inversão, bemóis e tons menores
+- ✅ **Capotraste informado pela fonte**, exibido na leitura e na impressão;
+  a tonalidade considera o som real, e os acordes mantêm as formas para tocar
 - ✅ Feedback de confiança na UI quando a detecção não está estável
 - ✅ Cifra no formato padrão de mercado (acordes em linha própria acima da letra,
   alinhados por coluna — como Cifra Club/Ultimate Guitar)
@@ -29,6 +33,9 @@ App publicado e funcional. Principais recursos implementados e testados:
 - ✅ **Favoritos na nuvem** (Supabase) e **histórico** local
 - ✅ Afinador de violão em tempo real (compara o microfone com as 6 cordas EADGBE)
 - ✅ Controle de tamanho de fonte da cifra (A− / A+)
+- ✅ Quebra de letra e acordes juntos para leitura em telas pequenas
+- ✅ **Preferências por música**: tom, fonte, versão simplificada, velocidade e
+  colunas salvos neste navegador pelo botão Salvar
 - ✅ Impressão da cifra e "Salvar como PDF" (via janela de impressão do navegador)
 - ✅ Rolagem automática da cifra (0.1x a 1.5x, ajuste fino, pausa automática no fim)
 - ✅ Diagramas de acorde (ChordDiagram)
@@ -57,6 +64,19 @@ npm run dev
 ```
 
 Abra http://localhost:3000
+
+### Verificação
+
+```bash
+npm test
+npm run test:pitch
+npm run lint
+npm run build
+```
+
+Os testes exercitam os módulos de produção: 12 casos de importação, transposição,
+leitura e preferências, além de quatro melodias de referência para o detector.
+O teste de voz em microfones reais continua sendo uma validação separada.
 
 ### Variáveis de ambiente
 
@@ -102,8 +122,11 @@ app/
     ControleFonte.tsx         → zoom de fonte da cifra
     AuthProvider, BottomNav, BuscaMusica, PainelFavoritos, ThemeToggle, ...
 lib/
-  pitch-detection.ts          → autocorrelação (núcleo técnico validado)
+  pitch-detection.ts          → detecção de notas e estimativa de tonalidade
   music-theory.ts             → frequência→nota e transposição de acordes
+  cifra-parser.ts             → importação de cifra, tom original e capotraste
+  cifra-format.ts             → alinhamento e quebra de letra com acordes
+  preferencias-musica.ts      → tom e ajustes de leitura salvos por música
   guitar-tuning.ts            → comparação com as 6 cordas do violão
   supabase.ts                 → cliente Supabase
   favoritos-nuvem.ts          → favoritos persistidos no Supabase

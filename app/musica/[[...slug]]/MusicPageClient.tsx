@@ -2,17 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcularIntervaloSemitons, transporCifraCompleta, NomeNota, NOMES_NOTAS } from '@/lib/music-theory';
+import { calcularIntervaloSemitons, transporCifraCompleta, transporTom, type NomeNota } from '@/lib/music-theory';
 import { registrarDeteccao, ehFavorito, registrarVisita, alternarFavorito } from '@/lib/historico-local';
-import { salvarENotificar } from '@/lib/storage-events';
+import {
+  obterPreferenciasMusica, salvarPreferenciasMusica, intervaloParaPreferencias,
+  PREFERENCIAS_PADRAO, type PreferenciasMusica,
+} from '@/lib/preferencias-musica';
 import { slugRealDoLegado } from '@/lib/data/songs-mock';
 import CifraViewer from '@/app/components/CifraViewer';
-import Magnetic from '@/app/components/Magnetic';
+import Modal from '@/app/components/ui/Modal';
 import GravadorDeTom from '@/app/components/GravadorDeTom';
 import Afinador from '@/app/components/Afinador';
 import { useAuth } from '@/app/components/AuthProvider';
 import { adicionarFavoritoNuvem, removerFavoritoNuvem, ehFavoritoNuvem } from '@/lib/favoritos-nuvem';
-import { ArrowLeft, Headphones, Heart, Printer, SlidersHorizontal, Mic } from 'lucide-react';
+import { ArrowLeft, Check, Headphones, Heart, Printer, Save, SlidersHorizontal, Mic } from 'lucide-react';
 
 interface MusicPageClientProps {
   params: { slug?: string[] };
@@ -22,7 +25,8 @@ interface CifraResult {
   id: string;
   titulo: string;
   artista: string;
-  tomOriginal: string;
+  tomOriginal: string | null;
+  capotraste: number | null;
   cifra: string;
   slug: string;
   simplificada?: boolean;
@@ -40,15 +44,29 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
   const [erro, setErro] = useState<string | null>(null);
   const [tomDetectado, setTomDetectado] = useState<NomeNota | null>(null);
   const [estabilidade, setEstabilidade] = useState<number | null>(null);
-  const [ajusteManual, setAjusteManual] = useState(0);
   const [afinadorAberto, setAfinadorAberto] = useState(false);
-  const [tamanhoFonte, setTamanhoFonte] = useState(15);
   const [favorito, setFavorito] = useState(false);
   const [mostrarGravador, setMostrarGravador] = useState(false);
-  const [simplificada, setSimplificada] = useState(false);
+  const [preferencias, setPreferencias] = useState<PreferenciasMusica>(PREFERENCIAS_PADRAO);
+  const [preferenciasSalvas, setPreferenciasSalvas] = useState<PreferenciasMusica | null>(null);
+  const [preferenciasProntas, setPreferenciasProntas] = useState(false);
+  const [mensagemSalvar, setMensagemSalvar] = useState('');
+  const { tamanhoFonte, simplificada } = preferencias;
 
   useEffect(() => {
-    if (!slug) return;
+    const salvas = obterPreferenciasMusica(slug);
+    setPreferencias(salvas ?? PREFERENCIAS_PADRAO);
+    setPreferenciasSalvas(salvas);
+    setPreferenciasProntas(true);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!preferenciasProntas) return;
+    if (!slug) {
+      setErro('Escolha uma música na busca para abrir a cifra.');
+      setCarregando(false);
+      return;
+    }
     const controller = new AbortController();
     setCarregando(true);
     setErro(null);
@@ -66,11 +84,11 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
     })
       .then((r) => r.json())
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (data.erro) {
           setErro(data.erro);
         } else {
           setDados({ id: slug, ...data });
-          setFavorito(ehFavorito(slug));
           registrarVisita(slug, data.titulo, data.artista);
         }
       })
@@ -84,12 +102,22 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
       });
 
     return () => controller.abort();
-  }, [router, slug, simplificada]);
+  }, [router, slug, simplificada, preferenciasProntas]);
 
   useEffect(() => {
-    if (!user || !slug) return;
-    ehFavoritoNuvem(slug).then(setFavorito);
+    let ativo = true;
+    if (user) {
+      ehFavoritoNuvem(slug).then(valor => { if (ativo) setFavorito(valor); });
+    } else {
+      setFavorito(ehFavorito(slug));
+    }
+    return () => { ativo = false; };
   }, [user, slug]);
+
+  function ajustarPreferencias(ajuste: Partial<PreferenciasMusica>) {
+    setPreferencias(atuais => ({ ...atuais, ...ajuste }));
+    setMensagemSalvar('');
+  }
 
   async function toggleFavorito() {
     if (!dados) return;
@@ -105,10 +133,44 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
   }
 
   function handleTomDetectado(nota: NomeNota, est: number) {
+    if (!dados?.tomOriginal) return;
+    const intervalo = calcularIntervaloSemitons(dados.tomOriginal, nota);
+    if (intervalo === null) return;
+    ajustarPreferencias({ tom: transporTom(dados.tomOriginal, intervalo), semitons: intervalo });
     setTomDetectado(nota);
     setEstabilidade(est);
     setMostrarGravador(false);
     registrarDeteccao(slug, nota, est);
+  }
+
+  function ajustarTom(delta: number) {
+    if (!dados) return;
+    const atual = intervaloParaPreferencias(dados.tomOriginal, preferencias);
+    const novo = Math.min(12, Math.max(-12, atual + delta));
+    ajustarPreferencias({ tom: dados.tomOriginal ? transporTom(dados.tomOriginal, novo) : null, semitons: novo });
+  }
+
+  function restaurarTomOriginal() {
+    ajustarPreferencias({ tom: dados?.tomOriginal ?? null, semitons: 0 });
+    setTomDetectado(null);
+    setEstabilidade(null);
+  }
+
+  function salvarMeuTom() {
+    if (!dados) return;
+    const intervalo = intervaloParaPreferencias(dados.tomOriginal, preferencias);
+    const ajustes = {
+      ...preferencias,
+      tom: dados.tomOriginal ? transporTom(dados.tomOriginal, intervalo) : null,
+      semitons: intervalo,
+    };
+    if (salvarPreferenciasMusica(slug, ajustes)) {
+      setPreferencias(ajustes);
+      setPreferenciasSalvas(ajustes);
+      setMensagemSalvar('Tom e leitura salvos neste navegador.');
+    } else {
+      setMensagemSalvar('Não foi possível salvar neste navegador. Seus ajustes continuam nesta sessão; tente salvar novamente.');
+    }
   }
 
   function voltar() {
@@ -147,18 +209,20 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
     );
   }
 
-  const semitons = tomDetectado
-    ? calcularIntervaloSemitons(dados.tomOriginal as NomeNota, tomDetectado) + ajusteManual
-    : ajusteManual;
+  const semitons = intervaloParaPreferencias(dados.tomOriginal, preferencias);
 
   const cifraExibida = semitons !== 0
     ? transporCifraCompleta(dados.cifra, semitons)
     : dados.cifra;
 
-  const indiceOriginal = NOMES_NOTAS.indexOf(dados.tomOriginal as NomeNota);
-  const tomAtual = indiceOriginal >= 0
-    ? NOMES_NOTAS[((indiceOriginal + semitons) % 12 + 12) % 12]
-    : dados.tomOriginal;
+  const tomAtual = dados.tomOriginal ? transporTom(dados.tomOriginal, semitons) : 'Não informado';
+  const estaSalvo = preferenciasSalvas !== null
+    && preferenciasSalvas.tom === (dados.tomOriginal ? tomAtual : null)
+    && preferenciasSalvas.semitons === semitons
+    && preferenciasSalvas.tamanhoFonte === tamanhoFonte
+    && preferenciasSalvas.simplificada === simplificada
+    && preferenciasSalvas.velocidade === preferencias.velocidade
+    && preferenciasSalvas.duasColunas === preferencias.duasColunas;
 
   const spotifySearchUrl = `https://open.spotify.com/search/${encodeURIComponent(`${dados.titulo} ${dados.artista}`)}`;
 
@@ -215,93 +279,75 @@ export default function MusicPageClient({ params }: MusicPageClientProps) {
           </div>
         </div>
 
-        <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--tc-s1)', borderTop: '0.5px solid var(--tc-border)', borderBottom: '0.5px solid var(--tc-border)', padding: '9px 16px', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--tc-txt3)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Tom</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--tc-gold)' }}>{tomAtual}</span>
-            {semitons !== 0 && (
-              <span style={{ fontSize: 11, color: 'var(--tc-txt3)' }}>({semitons > 0 ? '+' : ''}{semitons} st)</span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setSimplificada((s) => !s)}
-              aria-pressed={simplificada}
-              className="tc-press"
-              title={simplificada ? 'Mostrando acordes simplificados — clique para a versão completa' : 'Mostrar acordes simplificados (mais fáceis, sem tablatura)'}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 44, borderRadius: 20, padding: '0 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: simplificada ? 'rgba(212,160,23,0.15)' : 'var(--tc-s2)', border: simplificada ? '0.5px solid rgba(212,160,23,0.45)' : '0.5px solid var(--tc-border)', color: simplificada ? 'var(--tc-gold)' : 'var(--tc-txt2)' }}
-            >
-              {simplificada ? '✓ ' : ''}Simplificada
+        <section aria-label="Ajustes da música" className="no-print music-controls">
+          <div className="music-controls-row">
+            <div className="music-current-key">
+              <span className="music-control-label">Tom</span>
+              <strong>{tomAtual}</strong>
+              {semitons !== 0 && <small>({semitons > 0 ? '+' : ''}{semitons})</small>}
+            </div>
+            <div className="music-control-group">
+              <button aria-label="Diminuir meio tom" disabled={semitons <= -12} onClick={() => ajustarTom(-1)}>−</button>
+              <span>½ tom</span>
+              <button aria-label="Aumentar meio tom" disabled={semitons >= 12} onClick={() => ajustarTom(1)}>+</button>
+            </div>
+            <button className="music-action music-action-primary" onClick={() => setMostrarGravador(true)}
+              disabled={!dados.tomOriginal} aria-label="Cantar para ajustar"
+              title={dados.tomOriginal ? 'Cante um trecho desta música' : 'A fonte não informou o tom original'}>
+              <Mic size={16} /> Cantar
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
-              <button
-                onClick={() => setTamanhoFonte((t) => Math.max(12, t - 1))}
-                disabled={tamanhoFonte <= 12}
-                className="tc-press"
-                style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte <= 12 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte <= 12 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte <= 12 ? 0.5 : 1 }}
-              >
-                A−
-              </button>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tc-gold)', minWidth: 32, textAlign: 'center' }}>{tamanhoFonte}</span>
-              <button
-                onClick={() => setTamanhoFonte((t) => Math.min(24, t + 1))}
-                disabled={tamanhoFonte >= 24}
-                className="tc-press"
-                style={{ width: 44, height: 44, borderRadius: 8, background: 'none', border: 'none', color: tamanhoFonte >= 24 ? 'var(--tc-txt3)' : 'var(--tc-txt2)', cursor: tamanhoFonte >= 24 ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', opacity: tamanhoFonte >= 24 ? 0.5 : 1 }}
-              >
-                A+
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 20, padding: '8px 12px' }}>
-              <button aria-label="Diminuir meio tom" onClick={() => setAjusteManual((a) => a - 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>−</button>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--tc-txt2)', minWidth: 38, textAlign: 'center' }}>½ Tom</span>
-              <button aria-label="Aumentar meio tom" onClick={() => setAjusteManual((a) => a + 1)} className="tc-press" style={{ fontSize: 18, width: 34, height: 34, borderRadius: 10, background: 'none', border: 'none', color: 'var(--tc-txt2)', cursor: 'pointer' }}>+</button>
-              {semitons !== 0 && (
-                <button onClick={() => { setAjusteManual(0); setTomDetectado(null); setEstabilidade(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-txt3)' }}>✕</button>
-              )}
-            </div>
-
-            {!mostrarGravador && !tomDetectado && (
-              <Magnetic>
-                <button
-                  onClick={() => setMostrarGravador(true)}
-                  className="tc-press"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-gold)', color: '#0D0D0D', border: 'none', borderRadius: 24, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', minHeight: 44, minWidth: 44 }}
-                >
-                  <Mic size={16} /> Cantar para ajustar
-                </button>
-              </Magnetic>
-            )}
-
-            {tomDetectado && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--tc-s2)', border: '0.5px solid var(--tc-border)', borderRadius: 10, padding: '6px 12px' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: estabilidade && estabilidade >= 70 ? '#2dd4bf' : 'var(--tc-gold)', display: 'inline-block' }} />
-                <span style={{ fontSize: 12, color: 'var(--tc-txt2)' }}>{estabilidade}%</span>
-                <button onClick={() => { setTomDetectado(null); setEstabilidade(null); setMostrarGravador(false); setAjusteManual(0); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--tc-gold)', fontWeight: 600 }}>Cantar de novo</button>
-              </div>
-            )}
           </div>
-        </div>
-
-        {mostrarGravador && (
-          <div className="no-print" style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--tc-border)', flexShrink: 0 }}>
-            <GravadorDeTom onTomDetectado={handleTomDetectado} />
+          <div className="music-controls-row">
+            <button className="music-action" onClick={() => ajustarPreferencias({ simplificada: !simplificada })}
+              aria-pressed={simplificada} title="Alternar a versão da cifra">
+              {simplificada && <Check size={13} />} Simplificada
+            </button>
+            <div className="music-control-group">
+              <button aria-label="Diminuir tamanho da letra" disabled={tamanhoFonte <= 12}
+                onClick={() => ajustarPreferencias({ tamanhoFonte: Math.max(12, tamanhoFonte - 1) })}>A−</button>
+              <span>{tamanhoFonte}</span>
+              <button aria-label="Aumentar tamanho da letra" disabled={tamanhoFonte >= 24}
+                onClick={() => ajustarPreferencias({ tamanhoFonte: Math.min(24, tamanhoFonte + 1) })}>A+</button>
+            </div>
+            <button className="music-action" onClick={salvarMeuTom} aria-label="Salvar meu tom e leitura"
+              title="Salvar o tom e as preferências desta música neste navegador">
+              {estaSalvo ? <Check size={15} /> : <Save size={15} />} {estaSalvo ? 'Salvo' : 'Salvar'}
+            </button>
           </div>
-        )}
+          <div className="music-controls-caption">
+            <a href={`https://www.cifraclub.com.br/${slug}/${simplificada ? 'simplificada.html' : ''}`} target="_blank" rel="noopener noreferrer">Fonte: Cifra Club</a>
+            {dados.capotraste !== null && <span>Capotraste: {dados.capotraste}ª casa</span>}
+            {semitons !== 0 && <button onClick={restaurarTomOriginal}>Voltar ao tom original</button>}
+          </div>
+          {(mensagemSalvar || preferenciasSalvas) && (
+            <p role="status" className="music-settings-status">
+              {mensagemSalvar || (estaSalvo ? 'Ajustes salvos neste navegador.' : 'Você tem alterações ainda não salvas.')}
+            </p>
+          )}
+          {!dados.tomOriginal && <p className="music-settings-status">A fonte não informou o tom original. Use + e − para ajustar a cifra.</p>}
+          {tomDetectado && <p className="music-settings-status">Sugestão do trecho: {tomDetectado} · confiança {estabilidade}%. Confira cantando com a cifra.</p>}
+        </section>
 
         <div className="hidden print:block" style={{ padding: '16px' }}>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>{dados.titulo}</h1>
-          <p style={{ fontSize: 13 }}>{dados.artista} — Tom: {tomAtual}</p>
+          <p style={{ fontSize: 13 }}>{dados.artista} — Tom: {tomAtual}{dados.capotraste !== null && ` — Capotraste: ${dados.capotraste}ª casa`}</p>
         </div>
 
         <div className="music-cifra-region" style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: '16px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-          <CifraViewer cifra={cifraExibida} tamanhoFonte={tamanhoFonte} />
+          <CifraViewer
+            cifra={cifraExibida} tamanhoFonte={tamanhoFonte}
+            velocidade={preferencias.velocidade} duasColunas={preferencias.duasColunas}
+            onVelocidadeChange={velocidade => ajustarPreferencias({ velocidade })}
+            onColunasChange={duasColunas => ajustarPreferencias({ duasColunas })}
+          />
         </div>
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <Modal aberto={mostrarGravador} onFechar={() => setMostrarGravador(false)} titulo="Ajustar o tom da música">
+        <p className="mb-3 text-sm text-text-dim">Cante um trecho de {dados.titulo} como você costuma cantar.</p>
+        <GravadorDeTom onTomDetectado={handleTomDetectado} />
+      </Modal>
       <Afinador aberto={afinadorAberto} onFechar={() => setAfinadorAberto(false)} />
     </div>
   );

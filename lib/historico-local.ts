@@ -6,10 +6,10 @@
 // na home são TODOS derivados destes dados reais - nada é hardcoded.
 //
 // Limitação consciente: isso é por navegador/dispositivo, não por conta
-// de usuário (o app não tem login). Trocar de navegador ou limpar dados
+// de usuário. Trocar de navegador ou limpar dados
 // reseta o histórico. Isso é aceitável para o estágio atual do produto.
 
-import { NomeNota } from './music-theory';
+import type { NomeNota } from './music-theory';
 
 const CHAVE_HISTORICO = 'tom-certo:historico';
 const CHAVE_FAVORITOS = 'tom-certo:favoritos';
@@ -71,8 +71,8 @@ export function obterTomMaisFrequente(): NomeNota | null {
   return tom as NomeNota;
 }
 
-/** Precisão média real: média da estabilidade de todas as detecções já feitas. */
-export function obterPrecisaoMedia(): number | null {
+/** Indicador médio do algoritmo, não uma taxa medida de acertos. */
+export function obterConfiancaMedia(): number | null {
   const historico = lerHistorico();
   if (historico.length === 0) return null;
   const soma = historico.reduce((acc, e) => acc + e.estabilidade, 0);

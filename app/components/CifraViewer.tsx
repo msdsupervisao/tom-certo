@@ -3,10 +3,16 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ChordDiagram from '@/app/components/ChordDiagram';
+import { ehAcorde } from '@/lib/music-theory';
+import { extrairAcordesEPosicoes, quebrarLinhaCifra } from '@/lib/cifra-format';
 
 interface CifraViewerProps {
   cifra: string;
   tamanhoFonte?: number;
+  velocidade: number;
+  duasColunas: boolean;
+  onVelocidadeChange: (velocidade: number) => void;
+  onColunasChange: (duasColunas: boolean) => void;
 }
 
 interface DiagramaAtivo {
@@ -18,11 +24,10 @@ interface DiagramaAtivo {
 const VELOCIDADE_MIN = 0.1;
 const VELOCIDADE_MAX = 1.5;
 const VELOCIDADE_PASSO = 0.1;
-const VELOCIDADE_INICIAL = 0.2;
 const PIXELS_POR_SEGUNDO = 60;
 
 function isAcorde(palavra: string): boolean {
-  return /^[A-G][#b]?(?:M|m|maj|min|dim|aug|sus|add)?[0-9]*(\([^)]*\))?(\/[A-G][#b]?)?$/.test(palavra);
+  return ehAcorde(palavra);
 }
 
 function ehLinhaDeAcordes(linha: string): boolean {
@@ -31,8 +36,7 @@ function ehLinhaDeAcordes(linha: string): boolean {
   if (/^\[.*\]$/.test(trimada)) return false;
   const palavras = trimada.split(/\s+/).filter(Boolean);
   if (palavras.length === 0) return false;
-  const qtdAcordes = palavras.filter(p => isAcorde(p)).length;
-  return qtdAcordes / palavras.length >= 0.5;
+  return palavras.every(isAcorde);
 }
 
 function splitLinhaEmAcordes(linha: string): { texto: string; acorde?: string }[] {
@@ -48,7 +52,7 @@ function splitLinhaEmAcordes(linha: string): { texto: string; acorde?: string }[
   return partes;
 }
 
-export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerProps) {
+export default function CifraViewer({ cifra, tamanhoFonte = 15, velocidade, duasColunas, onVelocidadeChange, onColunasChange }: CifraViewerProps) {
   const linhas = cifra.split('\n');
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -57,9 +61,29 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
   const posicaoRef = useRef({ maximo: 0, progresso: 0 });
 
   const [rolando, setRolando] = useState(false);
-  const [velocidade, setVelocidade] = useState(VELOCIDADE_INICIAL);
-  const [duasColunas, setDuasColunas] = useState(false);
   const [diagramaAtivo, setDiagramaAtivo] = useState<DiagramaAtivo | null>(null);
+  const [colunasPorLinha, setColunasPorLinha] = useState(32);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let ativo = true;
+    const medir = () => {
+      if (!ativo) return;
+      const estilo = getComputedStyle(el);
+      const contexto = document.createElement('canvas').getContext('2d');
+      if (contexto) contexto.font = `${estilo.fontSize} ${estilo.fontFamily}`;
+      const caractere = contexto?.measureText('M').width || tamanhoFonte * 0.6;
+      let largura = el.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight);
+      if (duasColunas) largura = (largura - 2 * parseFloat(getComputedStyle(document.documentElement).fontSize)) / 2;
+      setColunasPorLinha(Math.max(8, Math.floor(largura / caractere)));
+    };
+    medir();
+    const observer = new ResizeObserver(medir);
+    observer.observe(el);
+    void document.fonts.ready.then(medir);
+    return () => { ativo = false; observer.disconnect(); };
+  }, [tamanhoFonte, duasColunas]);
 
   // Anima os acordes quando a cifra muda (transposição / versão simplificada),
   // sem disparar no primeiro render para não animar o carregamento inicial.
@@ -139,15 +163,15 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
       guardarPosicao();
       el.removeEventListener('scroll', guardarPosicao);
     };
-  }, [cifra, duasColunas, tamanhoFonte]);
+  }, [cifra, duasColunas, tamanhoFonte, colunasPorLinha]);
 
   function ajustarVelocidade(delta: number) {
-    setVelocidade(v => Math.round(Math.min(VELOCIDADE_MAX, Math.max(VELOCIDADE_MIN, v + delta)) * 10) / 10);
+    onVelocidadeChange(Math.round(Math.min(VELOCIDADE_MAX, Math.max(VELOCIDADE_MIN, velocidade + delta)) * 10) / 10);
   }
 
   return (
     <div className="area-impressao relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-panel">
-      <div className="no-print relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="no-print relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <button
           onClick={() => setRolando(r => !r)}
           style={{ background: 'var(--tc-gold)', color: '#0D0D0D' }}
@@ -155,9 +179,11 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
         >
           {rolando ? '⏸ Pausar' : '▶ Rolar'}
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
           <button
-            onClick={() => setDuasColunas(d => !d)}
+            onClick={() => onColunasChange(!duasColunas)}
+            aria-label="Alternar entre uma e duas colunas"
+            aria-pressed={duasColunas}
             className="flex h-10 w-10 items-center justify-center rounded-full border transition active:scale-95"
             style={duasColunas
               ? { borderColor: 'var(--tc-gold-border)', color: 'var(--tc-gold)', background: 'var(--tc-gold-dim)' }
@@ -167,10 +193,10 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
           >
             {duasColunas ? '1' : '2'}
           </button>
-          <button onClick={() => ajustarVelocidade(-VELOCIDADE_PASSO)} disabled={velocidade <= VELOCIDADE_MIN}
+          <button aria-label="Diminuir velocidade da rolagem" onClick={() => ajustarVelocidade(-VELOCIDADE_PASSO)} disabled={velocidade <= VELOCIDADE_MIN}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft active:scale-95 disabled:opacity-30">−</button>
           <span className="w-12 text-center text-sm font-semibold tabular-nums text-text-dim">{velocidade.toFixed(1)}x</span>
-          <button onClick={() => ajustarVelocidade(VELOCIDADE_PASSO)} disabled={velocidade >= VELOCIDADE_MAX}
+          <button aria-label="Aumentar velocidade da rolagem" onClick={() => ajustarVelocidade(VELOCIDADE_PASSO)} disabled={velocidade >= VELOCIDADE_MAX}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-lg font-bold text-text-dim transition hover:bg-bg-soft active:scale-95 disabled:opacity-30">+</button>
         </div>
       </div>
@@ -190,6 +216,7 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
             <LinhaDaCifra
               key={i}
               linha={linha}
+              colunas={colunasPorLinha}
               versaoAnim={versaoAnim}
               onAcordeHover={(acorde, x, y) => setDiagramaAtivo({ acorde, x, y })}
               onAcordeLeave={() => setDiagramaAtivo(null)}
@@ -205,13 +232,14 @@ export default function CifraViewer({ cifra, tamanhoFonte = 15 }: CifraViewerPro
   );
 }
 
-function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
+function LinhaDaCifra({ linha, colunas, versaoAnim, onAcordeHover, onAcordeLeave }: {
   linha: string;
+  colunas: number;
   versaoAnim: number;
   onAcordeHover: (acorde: string, x: number, y: number) => void;
   onAcordeLeave: () => void;
 }) {
-  const { letraLimpa, acordes } = extrairAcordesEPosicoes(linha);
+  const { acordes } = extrairAcordesEPosicoes(linha);
 
   // Linha de seção [Intro], [Verso] etc
   if (/^\s*\[.*\]\s*$/.test(linha)) {
@@ -224,6 +252,8 @@ function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
 
   // Linha com acordes no formato {acorde}
   if (acordes.length > 0) {
+    return <div className="mt-3 first:mt-0">
+      {quebrarLinhaCifra(linha, colunas).map(({ letraLimpa, acordes }, indice) => {
     let linhaDeAcordes = '';
     acordes.forEach(a => { while (linhaDeAcordes.length < a.posicao) linhaDeAcordes += ' '; linhaDeAcordes += a.nome; });
     const partes: { texto: string; acorde?: string }[] = [];
@@ -236,16 +266,18 @@ function LinhaDaCifra({ linha, versaoAnim, onAcordeHover, onAcordeLeave }: {
     if (cursor < linhaDeAcordes.length) partes.push({ texto: linhaDeAcordes.slice(cursor) });
 
     return (
-      <div className="mt-3 first:mt-0">
-        <div className="whitespace-pre-wrap break-words font-bold" style={{ color: 'var(--tc-gold)', overflowWrap: 'anywhere' }}>
+      <div key={indice} className="cifra-linha" style={{ breakInside: 'avoid' }}>
+        <div className="whitespace-pre font-bold" style={{ color: 'var(--tc-gold)' }}>
           {partes.map((p, i) => p.acorde
             ? <AcordeSpan key={`${i}-${versaoAnim}`} acorde={p.acorde} texto={p.texto} animar={versaoAnim > 0} onHover={onAcordeHover} onLeave={onAcordeLeave} />
             : <span key={i}>{p.texto}</span>
           )}
         </div>
-        <div className="whitespace-pre-wrap break-words" style={{ color: 'var(--tc-txt)', overflowWrap: 'anywhere' }}>{letraLimpa || '\u00A0'}</div>
+        {letraLimpa.trim() && <div className="whitespace-pre" style={{ color: 'var(--tc-txt)' }}>{letraLimpa}</div>}
       </div>
     );
+      })}
+    </div>;
   }
 
   // Linha de texto puro — detecta acordes por palavras
@@ -276,7 +308,7 @@ function AcordeSpan({ acorde, texto, animar, onHover, onLeave }: {
   return (
     <span
       className={animar ? 'tc-acorde-anim' : undefined}
-      style={{ color: 'var(--tc-gold)', cursor: 'pointer', borderRadius: 3, padding: '0 2px', transition: 'all 0.15s' }}
+      style={{ color: 'var(--tc-gold)', cursor: 'pointer', borderRadius: 3, transition: 'all 0.15s' }}
       onMouseEnter={e => {
         const el = e.target as HTMLElement;
         el.style.background = 'var(--tc-gold)';
@@ -294,23 +326,4 @@ function AcordeSpan({ acorde, texto, animar, onHover, onLeave }: {
       {texto}
     </span>
   );
-}
-
-function extrairAcordesEPosicoes(linha: string): { letraLimpa: string; acordes: { nome: string; posicao: number }[] } {
-  const acordes: { nome: string; posicao: number }[] = [];
-  let letraLimpa = '';
-  let i = 0;
-  while (i < linha.length) {
-    if (linha[i] === '{') {
-      const fechamento = linha.indexOf('}', i);
-      if (fechamento !== -1) {
-        acordes.push({ nome: linha.slice(i + 1, fechamento), posicao: letraLimpa.length });
-        i = fechamento + 1;
-        continue;
-      }
-    }
-    letraLimpa += linha[i];
-    i++;
-  }
-  return { letraLimpa, acordes };
 }

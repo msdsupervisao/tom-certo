@@ -110,7 +110,7 @@ export default function LoginPage() {
           )}
 
           <p style={{ marginTop: 16, color: 'var(--tc-txt3)', fontSize: 12, lineHeight: 1.6 }}>
-            Ao entrar, seus favoritos e histórico ficam sincronizados entre dispositivos.
+            Seus favoritos são sincronizados entre dispositivos. O histórico e os ajustes de cada música ficam neste navegador.
           </p>
         </div>
       </div>

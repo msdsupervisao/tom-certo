@@ -37,7 +37,7 @@ export default function Modal({ aberto, onFechar, titulo, children }: ModalProps
         aria-modal="true"
         aria-labelledby="modal-titulo"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-[var(--radius-lg)] border border-border bg-panel p-6 shadow-[var(--shadow-md)]"
+        className="max-h-[calc(100dvh-2.5rem)] w-full max-w-sm overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-panel p-6 shadow-[var(--shadow-md)]"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="modal-titulo" className="font-display text-lg font-bold">

@@ -102,6 +102,25 @@ html, body {
 .font-mono { font-family: var(--font-mono); }
 .font-display { font-family: var(--font-display); }
 
+.music-controls { flex-shrink: 0; padding: 10px 16px; border-block: 1px solid var(--tc-border); background: var(--tc-s1); }
+.music-controls-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.music-controls-row + .music-controls-row { margin-top: 8px; }
+.music-current-key { display: flex; align-items: center; gap: 6px; flex: 1; }
+.music-current-key strong { color: var(--tc-gold); font-size: 16px; }
+.music-current-key small, .music-control-label { color: var(--tc-txt2); font-size: 11px; }
+.music-control-label { text-transform: uppercase; letter-spacing: .08em; }
+.music-control-group { display: flex; align-items: center; border: 1px solid var(--tc-border); border-radius: 12px; background: var(--tc-s2); }
+.music-control-group button { min-width: 40px; min-height: 44px; background: none; border: none; color: var(--tc-txt); cursor: pointer; font-size: 16px; }
+.music-control-group span { min-width: 22px; text-align: center; font-size: 11px; color: var(--tc-txt2); }
+.music-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 10px; min-height: 44px; border-radius: 12px; border: 1px solid var(--tc-border); background: var(--tc-s2); color: var(--tc-txt2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.music-action[aria-pressed='true'] { color: var(--tc-gold); border-color: var(--tc-gold-border); }
+.music-action-primary { background: var(--tc-gold); color: #0D0D0D; }
+.music-controls button:disabled { opacity: .4; cursor: not-allowed; }
+.music-controls-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 8px; font-size: 11px; }
+.music-controls-caption a { color: var(--tc-txt2); text-underline-offset: 3px; }
+.music-controls-caption button { padding: 4px 0; border: none; background: none; color: var(--tc-gold); cursor: pointer; }
+.music-settings-status { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--tc-txt2); }
+
 /* --- Scrollbar fina âmbar --- */
 * {
   scrollbar-width: thin;

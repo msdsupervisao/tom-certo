@@ -23,8 +23,13 @@ const recursos = [
   },
   {
     icon: <Mic size={18} />,
-    titulo: 'Detectar seu tom',
-    texto: 'Use o microfone para cantar um trecho e descobrir uma referência vocal.',
+    titulo: 'Cantar para ajustar',
+    texto: 'Cante um trecho da música para estimar sua tonalidade. Confira a sugestão cantando com a cifra.',
+  },
+  {
+    icon: <Music size={18} />,
+    titulo: 'Meu tom por música',
+    texto: 'Salve o tom, a fonte e as preferências de leitura de cada música neste navegador.',
   },
   {
     icon: <SlidersHorizontal size={18} />,
@@ -47,7 +52,7 @@ export default function SobrePage() {
         </Link>
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 700, color: UI.gold, margin: 0 }}>Sobre o TomCerto</p>
-          <p style={{ fontSize: 11, color: UI.text3, margin: '2px 0 0' }}>Cifras ajustadas ao seu alcance vocal</p>
+          <p style={{ fontSize: 11, color: UI.text3, margin: '2px 0 0' }}>Um tom confortável para cada música</p>
         </div>
       </header>
 

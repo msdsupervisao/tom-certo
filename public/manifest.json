@@ -1,7 +1,7 @@
 {
   "name": "Tom Certo",
   "short_name": "Tom Certo",
-  "description": "Cifras no seu tom — detecte seu tom vocal e toque qualquer música",
+  "description": "Encontre um tom confortável para cada música e salve seus ajustes para tocar depois.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

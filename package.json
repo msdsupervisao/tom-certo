@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:pitch": "node _ks-test.mjs"
+    "test": "node --import ./tests/register.mjs --test tests/*.test.mjs",
+    "test:pitch": "node --import ./tests/register.mjs _ks-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

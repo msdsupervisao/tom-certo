@@ -34,5 +34,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function MusicaPage({ params }: PageProps) {
-  return <MusicPageClient params={await params} />;
+  const resolvedParams = await params;
+  return <MusicPageClient key={resolvedParams.slug?.join('/') ?? ''} params={resolvedParams} />;
 }

@@ -4,7 +4,7 @@ import { AuthProvider } from '@/app/components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Tom Certo — Cifras no seu tom',
-  description: 'Cante um trecho, receba a cifra no seu tom — sem ficar adivinhando capotraste.',
+  description: 'Busque uma cifra, cante um trecho e encontre um tom confortável para a música. Salve seus ajustes para o próximo ensaio.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

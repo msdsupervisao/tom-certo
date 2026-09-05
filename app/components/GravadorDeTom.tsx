@@ -189,12 +189,18 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
   return (
     <div className="rounded-2xl border border-border bg-panel p-5">
       {estado === 'ocioso' && (
+        <div>
+        <p className="mb-3 text-sm text-text-dim">
+          Cante cerca de 6 segundos, sem acompanhamento, em uma altura confortável. O app estima o tom deste trecho; confira depois com a cifra.
+        </p>
         <button
           onClick={iniciarGravacao}
           className="w-full rounded-xl bg-violeta py-4 text-base font-semibold text-[#0D0D0D] transition hover:opacity-90"
         >
-          🎙️ Cantar para ajustar o tom
+          🎙️ Começar a cantar
         </button>
+        <p className="mt-2 text-xs text-text-dim">O áudio é analisado neste dispositivo e não é enviado ao servidor.</p>
+        </div>
       )}
 
       {estado === 'gravando' && (
@@ -240,16 +246,17 @@ export default function GravadorDeTom({ onTomDetectado }: GravadorDeTomProps) {
 
       {estado === 'resultado' && resultadoFinal && (
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-wider text-text-dim">Seu tom</p>
+          <p className="text-[11px] uppercase tracking-wider text-text-dim">Tom estimado do trecho</p>
           <p className="font-display text-6xl font-bold" style={{ color: 'var(--tc-gold)', lineHeight: 1.1 }}>
             {resultadoFinal.nota}
           </p>
           <p className="mt-1 text-sm" style={{ color: resultadoFinal.estabilidade >= LIMIAR_ESTABILIDADE_ACEITAVEL ? 'var(--turquesa)' : 'var(--amarelo)' }}>
             {resultadoFinal.modo} · confiança {resultadoFinal.estabilidade}%
           </p>
+          <p className="mt-2 text-xs text-text-dim">A confiança indica a clareza da estimativa. Ela não mede seu alcance vocal nem a qualidade do seu canto.</p>
           {resultadoFinal.estabilidade < LIMIAR_ESTABILIDADE_ACEITAVEL && (
             <p className="mx-auto mt-2 max-w-xs text-xs text-text-dim">
-              Ficou meio ambíguo. Cante um trecho um pouco mais longo e com a melodia bem marcada, ou ajuste o ½ tom na mão.
+              O trecho ficou ambíguo. Tente outra parte da música com a melodia bem marcada ou ajuste com os botões + e −.
             </p>
           )}
           <div className="mt-4 flex gap-2">

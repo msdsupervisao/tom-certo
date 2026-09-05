@@ -10,6 +10,34 @@ export const NOMES_NOTAS = [
 
 export type NomeNota = typeof NOMES_NOTAS[number];
 
+/** Aceita também bemóis, acidentes Unicode e as grafias B#/Cb e E#/Fb. */
+export function indiceDaNota(nota: string): number | null {
+  const match = nota.match(/^([A-G])([#b♯♭]?)$/);
+  if (!match) return null;
+  const naturais: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const acidente = ['#', '♯'].includes(match[2]) ? 1 : ['b', '♭'].includes(match[2]) ? -1 : 0;
+  return (naturais[match[1]] + acidente + 12) % 12;
+}
+
+/** Valida um tom completo; o modo menor permanece na apresentação. */
+export function ehTomValido(tom: string): boolean {
+  return /^[A-G][#b♯♭]?m?$/.test(tom);
+}
+
+const MODIFICADOR = '(?:maj|min|dim|aug|sus|add|dom|omit|no|m|M|[0-9+#bº°øØΔ♯♭-]|/\\d+)';
+const SUFIXO_ACORDE = new RegExp(`^${MODIFICADOR}*(?:\\((?:${MODIFICADOR}|,)+\\)${MODIFICADOR}*)*$`);
+
+function decomporAcorde(acorde: string) {
+  const match = acorde.match(/^([A-G][#b♯♭]?)(.*?)(?:\/([A-G][#b♯♭]?))?$/);
+  if (!match || !SUFIXO_ACORDE.test(match[2])) return null;
+  return { raiz: match[1], sufixo: match[2], baixo: match[3] };
+}
+
+/** Mesma gramática na importação, na transposição e no leitor. */
+export function ehAcorde(acorde: string): boolean {
+  return decomporAcorde(acorde) !== null;
+}
+
 export interface NotaDetectada {
   nome: NomeNota;
   oitava: number;
@@ -22,7 +50,7 @@ export interface NotaDetectada {
  * Usa A4 = 440Hz como referência padrão (afinação concertista).
  */
 export function frequenciaParaNota(frequencia: number): NotaDetectada | null {
-  if (frequencia <= 0) return null;
+  if (!Number.isFinite(frequencia) || frequencia <= 0) return null;
 
   const A4 = 440;
   const semitomEntreA4 = 12 * Math.log2(frequencia / A4);
@@ -48,11 +76,12 @@ export function frequenciaParaNota(frequencia: number): NotaDetectada | null {
  * (transpor para baixo) ou positivo (transpor para cima).
  */
 export function calcularIntervaloSemitons(
-  notaOriginal: NomeNota,
-  notaDetectada: NomeNota
-): number {
-  const indiceOriginal = NOMES_NOTAS.indexOf(notaOriginal);
-  const indiceDetectado = NOMES_NOTAS.indexOf(notaDetectada);
+  notaOriginal: string,
+  notaDetectada: string
+): number | null {
+  if (!ehTomValido(notaOriginal) || !ehTomValido(notaDetectada)) return null;
+  const indiceOriginal = indiceDaNota(notaOriginal.replace(/m$/, ''))!;
+  const indiceDetectado = indiceDaNota(notaDetectada.replace(/m$/, ''))!;
 
   let intervalo = indiceDetectado - indiceOriginal;
 
@@ -69,42 +98,21 @@ export function calcularIntervaloSemitons(
  * Preserva sufixos (m, 7, maj7, sus4, etc) e baixo de inversão (depois da barra).
  */
 export function transporAcorde(acorde: string, semitons: number): string {
-  if (semitons === 0) return acorde;
-
-  // Regex captura: nota raiz (com sustenido/bemol opcional), sufixo, e baixo opcional após "/"
-  const match = acorde.match(/^([A-G])(#|b)?([^/]*)(\/([A-G])(#|b)?)?$/);
-  if (!match) return acorde; // não reconhecido como acorde - retorna sem alterar
-
-  const [, raiz, acidente, sufixo, , baixoRaiz, baixoAcidente] = match;
-
-  const raizTransposta = transporNotaUnica(raiz, acidente, semitons);
-
-  let resultado = raizTransposta + sufixo;
-
-  if (baixoRaiz) {
-    const baixoTransposto = transporNotaUnica(baixoRaiz, baixoAcidente, semitons);
-    resultado += '/' + baixoTransposto;
-  }
-
-  return resultado;
+  if (!Number.isInteger(semitons) || semitons % 12 === 0) return acorde;
+  const partes = decomporAcorde(acorde);
+  if (!partes) return acorde;
+  return transporNotaUnica(partes.raiz, semitons) + partes.sufixo
+    + (partes.baixo ? '/' + transporNotaUnica(partes.baixo, semitons) : '');
 }
 
-function transporNotaUnica(raiz: string, acidente: string | undefined, semitons: number): string {
-  // Normaliza bemol para o sustenido equivalente para simplificar o índice
-  const mapaBemolParaSustenido: Record<string, string> = {
-    Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#',
-  };
+function transporNotaUnica(nota: string, semitons: number): string {
+  const indice = indiceDaNota(nota);
+  if (indice === null) return nota;
+  return NOMES_NOTAS[((indice + semitons) % 12 + 12) % 12];
+}
 
-  const notaCompleta = raiz + (acidente || '');
-  const notaNormalizada = mapaBemolParaSustenido[notaCompleta] || notaCompleta;
-
-  const indiceAtual = NOMES_NOTAS.indexOf(notaNormalizada as NomeNota);
-  if (indiceAtual === -1) return notaCompleta; // fallback de segurança
-
-  let novoIndice = (indiceAtual + semitons) % 12;
-  if (novoIndice < 0) novoIndice += 12;
-
-  return NOMES_NOTAS[novoIndice];
+export function transporTom(tom: string, semitons: number): string {
+  return ehTomValido(tom) ? transporAcorde(tom, semitons) : tom;
 }
 
 /**
