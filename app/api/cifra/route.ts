@@ -14,6 +14,9 @@ const SLUG_VALIDO = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*){1,2
 const TAMANHO_MAXIMO_HTML = 2_000_000;
 const TIMEOUT_CIFRA_MS = 8_000;
 
+export const runtime = 'edge';
+export const preferredRegion = 'gru1';
+
 export interface CifraResult {
   titulo: string;
   artista: string;
