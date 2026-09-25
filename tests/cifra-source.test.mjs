@@ -42,14 +42,14 @@ test('não repete consultas para cifras inexistentes ou limite de requisições'
   }
 });
 
-test('encerra após as duas fontes falharem', async () => {
+test('tenta a camada de leitura depois das duas fontes falharem', async () => {
   let chamadas = 0;
   const resposta = await buscarCifraNaFonte('artista/musica', false, new AbortController().signal, async () => {
     chamadas++;
     return new Response('Bloqueado', { status: 403 });
   });
   assert.equal(resposta.status, 403);
-  assert.equal(chamadas, 2);
+  assert.equal(chamadas, 3);
 });
 
 test('respeita o cancelamento sem iniciar uma nova consulta', async () => {

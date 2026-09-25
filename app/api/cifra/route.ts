@@ -17,7 +17,7 @@ const TIMEOUT_CIFRA_MS = 8_000;
 export interface CifraResult {
   titulo: string;
   artista: string;
-  tomOriginal: string;
+  tomOriginal: string | null;
   cifra: string; // no formato {Acorde}Letra da linha
   slug: string;
   simplificada: boolean; // se veio da versão simplificada do Cifra Club
@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
     if (html.length > TAMANHO_MAXIMO_HTML) {
       return NextResponse.json({ erro: 'A página da cifra excedeu o tamanho esperado' }, { status: 502 });
     }
-    const resultado = parsearCifra(html, slug);
+    const resultado = response.url.includes('r.jina.ai')
+      ? parsearCifraMarkdown(html, slug)
+      : parsearCifra(html, slug);
 
     if (!resultado) {
       return NextResponse.json({ erro: 'Não foi possível extrair a cifra' }, { status: 422 });
@@ -204,6 +206,24 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
   if (!tomOriginal) return null;
 
   return { titulo, artista, tomOriginal, cifra: cifraFormatada, slug };
+}
+
+/** Interpreta o Markdown retornado pela camada de leitura da página pública. */
+function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult, 'simplificada'> | null {
+  const titleMatch = markdown.match(/^Title:\s*(.+?)\s+-\s+(.+?)\s+-\s+Cifra Club\s*$/mi);
+  const titulo = titleMatch?.[1]?.replace(/\s+\((?:acordes|chords)\)$/i, '').trim() || 'Sem título';
+  const artista = titleMatch?.[2]?.trim().replace(/\s+&\s+/g, ' e ') || 'Artista desconhecido';
+  const conteudo = markdown.split(/^Markdown Content:\s*$/im)[1] || '';
+  const linhas = conteudo.split(/\r?\n/)
+    .map(linha => linha
+      .replace(/\*\*([^*]+)\*\*/g, (_, token: string) => REGEX_ACORDE.test(token.trim()) ? `{${token.trim()}}` : token)
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .trimEnd())
+    .filter(linha => !/^\[tab\b/i.test(linha) && !/^parte\s+\d+\s+de\s+\d+/i.test(linha));
+  const cifra = linhas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (cifra.length < 20) return null;
+  return { titulo, artista, tomOriginal: null, cifra, slug };
 }
 
 /** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */

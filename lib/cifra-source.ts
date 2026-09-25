@@ -1,6 +1,10 @@
 // Os dois domínios pertencem ao Cifra Club e usam os mesmos slugs de música.
 // A disponibilidade pode diferir entre eles para consultas feitas pelo servidor.
-const ORIGENS = ['https://www.cifraclub.com.br', 'https://www.cifraclub.com'];
+const ORIGENS = [
+  'https://www.cifraclub.com.br',
+  'https://www.cifraclub.com',
+  'https://r.jina.ai/http://www.cifraclub.com.br',
+];
 
 export async function buscarCifraNaFonte(
   slug: string,
