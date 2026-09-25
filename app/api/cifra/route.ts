@@ -216,7 +216,12 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
   const titleMatch = markdown.match(/^Title:\s*(.+?)\s+-\s+(.+?)\s+-\s+Cifra Club\s*$/mi);
   const titulo = titleMatch?.[1]?.replace(/\s+\((?:acordes|chords)\)$/i, '').trim() || 'Sem título';
   const artista = titleMatch?.[2]?.trim().replace(/\s+&\s+/g, ' e ') || 'Artista desconhecido';
-  const conteudo = markdown.split(/^Markdown Content:\s*$/im)[1] || '';
+  const bruto = markdown.split(/^Markdown Content:\s*$/im)[1] || '';
+  // A camada de leitura também devolve menus, lista de acordes e rodapé.
+  // A primeira seção com acordes em negrito marca o início da cifra real.
+  const inicio = bruto.search(/^\[(?:intro|primeira parte|verso|coro|refr[aã]o)\][^\n]*\*\*/im);
+  const conteudo = inicio >= 0 ? bruto.slice(inicio) : bruto;
+  const tom = conteudo.match(/^Tom:\s*([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
   const linhas = conteudo.split(/\r?\n/)
     .map(linha => linha
       .replace(/\*\*([^*]+)\*\*/g, (_, token: string) => REGEX_ACORDE.test(token.trim()) ? `{${token.trim()}}` : token)
@@ -226,7 +231,7 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
     .filter(linha => !/^\[tab\b/i.test(linha) && !/^parte\s+\d+\s+de\s+\d+/i.test(linha));
   const cifra = linhas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   if (cifra.length < 20) return null;
-  return { titulo, artista, tomOriginal: null, cifra, slug };
+  return { titulo, artista, tomOriginal: tom, cifra, slug };
 }
 
 /** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */
