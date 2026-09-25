@@ -8,6 +8,7 @@
 // na memória do cliente durante aquela sessão.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { buscarCifraNaFonte } from '@/lib/cifra-source';
 
 const SLUG_VALIDO = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*){1,2}$/i;
 const TAMANHO_MAXIMO_HTML = 2_000_000;
@@ -37,30 +38,19 @@ export async function GET(request: NextRequest) {
     (request.nextUrl.searchParams.get('simplificada') || '').toLowerCase()
   );
 
-  const url = simplificada
-    ? `https://www.cifraclub.com.br/${slug}/simplificada.html`
-    : `https://www.cifraclub.com.br/${slug}/`;
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_CIFRA_MS);
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        Referer: 'https://www.cifraclub.com.br/',
-        'Cache-Control': 'no-cache',
-      },
-      signal: controller.signal,
-      next: { revalidate: 0 },
-    });
+    const response = await buscarCifraNaFonte(slug, simplificada, controller.signal);
 
     if (!response.ok) {
+      console.warn('[cifra] Fonte indisponível', { status: response.status, origem: new URL(response.url).hostname });
       return NextResponse.json(
-        { erro: `Cifra Club retornou ${response.status}` },
-        { status: response.status }
+        { erro: response.status === 404
+          ? 'Esta cifra não foi encontrada na fonte.'
+          : 'A fonte de cifras está indisponível no momento. Tente novamente em alguns instantes.' },
+        { status: response.status === 404 ? 404 : 503 }
       );
     }
 
@@ -146,7 +136,7 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
     const titleDecoded = decodeEntities(titleMatch[1]);
     const partes = titleDecoded.split(' - ');
     if (partes.length >= 2) {
-      titulo = partes[0].trim();
+      titulo = partes[0].trim().replace(/\s+\((?:acordes|chords)\)$/i, '');
       // Remove "Cifra Club" do final, pega somente o nome do artista
       artista = partes
         .slice(1)
