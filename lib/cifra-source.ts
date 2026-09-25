@@ -28,8 +28,8 @@ export async function buscarCifraNaFonte(
     const indisponivel = resposta.status === 403 || resposta.status >= 500;
     if (!indisponivel || indice === ORIGENS.length - 1) return resposta;
 
-    // Libera a conexão antes de tentar o domínio alternativo, com o mesmo prazo.
-    await resposta.body?.cancel();
+    // Tenta a próxima origem sem manipular o corpo da resposta bloqueada:
+    // alguns runtimes serverless encerram a conexão ao cancelar esse stream.
   }
 
   throw new Error('Nenhuma fonte de cifra disponível');
