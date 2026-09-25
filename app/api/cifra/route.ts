@@ -14,10 +14,6 @@ const SLUG_VALIDO = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*){1,2
 const TAMANHO_MAXIMO_HTML = 2_000_000;
 const TIMEOUT_CIFRA_MS = 8_000;
 
-// O Cifra Club bloqueia o IP padrão da Vercel em IAD1. A rota precisa sair
-// por GRU1, onde a mesma página pública responde normalmente.
-export const preferredRegion = 'gru1';
-
 export interface CifraResult {
   titulo: string;
   artista: string;
