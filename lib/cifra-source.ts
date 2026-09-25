@@ -15,15 +15,25 @@ export async function buscarCifraNaFonte(
   const caminho = `/${slug}/${simplificada ? 'simplificada.html' : ''}`;
 
   for (const [indice, origem] of ORIGENS.entries()) {
-    const resposta = await consultar(`${origem}${caminho}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-        Accept: 'text/html',
-      },
-      signal,
-      cache: 'no-store',
-    });
+    const jina = origem.startsWith('https://r.jina.ai/');
+    let resposta: Response;
+    try {
+      resposta = await consultar(`${origem}${caminho}`, {
+        headers: jina
+          ? { Accept: 'text/plain', 'X-Return-Format': 'markdown' }
+          : {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+              Accept: 'text/html',
+            },
+        signal,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      console.warn('[cifra] Falha ao consultar fonte', { origem, erro: String(error) });
+      if (indice === ORIGENS.length - 1) throw error;
+      continue;
+    }
 
     const indisponivel = resposta.status === 403 || resposta.status >= 500;
     if (!indisponivel || indice === ORIGENS.length - 1) return resposta;
