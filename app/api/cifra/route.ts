@@ -221,7 +221,7 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
   // A primeira seção com acordes em negrito marca o início da cifra real.
   const inicio = bruto.search(/^\[(?:intro|primeira parte|verso|coro|refr[aã]o)\][^\n]*\*\*/im);
   const conteudo = inicio >= 0 ? bruto.slice(inicio) : bruto;
-  const tom = conteudo.match(/^Tom:\s*([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
+  const tom = bruto.match(/^Tom:\s*([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
   const linhas = conteudo.split(/\r?\n/)
     .map(linha => linha
       .replace(/\*\*([^*]+)\*\*/g, (_, token: string) => REGEX_ACORDE.test(token.trim()) ? `{${token.trim()}}` : token)
