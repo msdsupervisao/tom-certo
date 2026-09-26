@@ -217,21 +217,30 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
   const titulo = titleMatch?.[1]?.replace(/\s+\((?:acordes|chords)\)$/i, '').trim() || 'Sem título';
   const artista = titleMatch?.[2]?.trim().replace(/\s+&\s+/g, ' e ') || 'Artista desconhecido';
   const bruto = markdown.split(/^Markdown Content:\s*$/im)[1] || '';
-  // A camada de leitura também devolve menus, lista de acordes e rodapé.
-  // A primeira seção com acordes em negrito marca o início da cifra real.
-  const inicio = bruto.search(/^\[(?:intro|primeira parte|verso|coro|refr[aã]o)\][^\n]*\*\*/im);
-  const conteudo = inicio >= 0 ? bruto.slice(inicio) : bruto;
-  const tom = bruto.match(/^Tom:\s*([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
-  const linhas = conteudo.split(/\r?\n/)
+  // A camada de leitura também devolve menus, links e a lista de acordes.
+  // O bloco da cifra começa depois do marcador "Tom:" e termina antes das
+  // informações editoriais da música.
+  const depoisDoTom = bruto.match(/^Tom:\s*(?:\n\s*)?([A-G][#b]?m?)\s*$/im);
+  const inicioTom = depoisDoTom?.index ?? -1;
+  const aPartirDoTom = inicioTom >= 0 ? bruto.slice(inicioTom + depoisDoTom![0].length) : bruto;
+  const inicio = aPartirDoTom.search(/^\[[^\]]+\]\s*$/im);
+  const conteudo = inicio >= 0 ? aPartirDoTom.slice(inicio) : aPartirDoTom;
+  const fim = conteudo.search(/^Informações da música\s*$/im);
+  const cifraBruta = fim >= 0 ? conteudo.slice(0, fim) : conteudo;
+  const tom = bruto.match(/^Tom:\s*(?:\n\s*)?([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
+  const linhas = cifraBruta.split(/\r?\n/)
     .map(linha => linha
       .replace(/\*\*([^*]+)\*\*/g, (_, token: string) => REGEX_ACORDE.test(token.trim()) ? `{${token.trim()}}` : token)
       .replace(/`([^`]+)`/g, '$1')
       .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\s+(?=\[[^\]]+\])/g, '\n')
       .trimEnd())
-    .filter(linha => !/^\[tab\b/i.test(linha) && !/^parte\s+\d+\s+de\s+\d+/i.test(linha));
+    .flatMap(linha => linha.split('\n'))
+    .filter(linha => !/^\[tab\b/i.test(linha) && !/^parte\s+\d+\s+de\s+\d+/i.test(linha) && !/^\d+\s*bpm$/i.test(linha.trim()) && !/^tempo\s+\d+:/i.test(linha.trim()) && !/^batida /i.test(linha.trim()));
   const cifra = linhas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   if (cifra.length < 20) return null;
-  return { titulo, artista, tomOriginal: tom, cifra, slug };
+  const tomResolvido = tom ?? cifra.match(/\{([A-G][#b]?(?:m|maj|min)?)\}/)?.[1] ?? null;
+  return { titulo, artista, tomOriginal: tomResolvido, cifra, slug };
 }
 
 /** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */
