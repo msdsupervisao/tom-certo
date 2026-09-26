@@ -199,8 +199,15 @@ function parsearCifra(html: string, slug: string): Omit<CifraResult, 'simplifica
     cur[1].length > best[1].length ? cur : best
   );
 
+  // O HTML novo do Cifra Club guarda o nome do acorde no atributo
+  // `data-chord-name` do <b>. Preserve esse dado antes de remover as tags;
+  // sem isso os acordes ficam misturados ao texto e perdem a formatação.
+  const preComAcordesMarcados = preMatch[1].replace(
+    /<b[^>]*data-chord-name=["']([^"']+)["'][^>]*>[\s\S]*?<\/b>/gi,
+    (_match, acorde: string) => `{${acorde.trim()}}`,
+  );
   const cifraFormatada = converterParaFormatoInterno(
-    limparConteudoHtml(preMatch[1]).split('\n')
+    limparConteudoHtml(preComAcordesMarcados).split('\n')
   );
 
   if (cifraFormatada.length < 20) return null;
@@ -217,17 +224,17 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
   const titulo = titleMatch?.[1]?.replace(/\s+\((?:acordes|chords)\)$/i, '').trim() || 'Sem título';
   const artista = titleMatch?.[2]?.trim().replace(/\s+&\s+/g, ' e ') || 'Artista desconhecido';
   const bruto = markdown.split(/^Markdown Content:\s*$/im)[1] || '';
-  // A camada de leitura também devolve menus, links e a lista de acordes.
-  // O bloco da cifra começa depois do marcador "Tom:" e termina antes das
-  // informações editoriais da música.
-  const depoisDoTom = bruto.match(/^Tom:\s*(?:\n\s*)?([A-G][#b]?m?)\s*$/im);
-  const inicioTom = depoisDoTom?.index ?? -1;
-  const aPartirDoTom = inicioTom >= 0 ? bruto.slice(inicioTom + depoisDoTom![0].length) : bruto;
-  const inicio = aPartirDoTom.search(/^\[[^\]]+\]\s*$/im);
-  const conteudo = inicio >= 0 ? aPartirDoTom.slice(inicio) : aPartirDoTom;
-  const fim = conteudo.search(/^Informações da música\s*$/im);
+  // O Cifra Club passou a variar o cabeçalho conforme a cifra: algumas
+  // respostas têm "Tom:" vazio, outras nem exibem esse campo, e os
+  // marcadores ([Intro], [Refrão]...) podem ficar na mesma linha dos acordes.
+  // Por isso o início deve ser encontrado pelo primeiro marcador de seção,
+  // nunca pelo menu ou por uma linha isolada de "Tom:".
+  const inicio = encontrarInicioDaCifra(bruto);
+  if (inicio < 0) return null;
+  const conteudo = bruto.slice(inicio);
+  const fim = encontrarFimDaCifra(conteudo);
   const cifraBruta = fim >= 0 ? conteudo.slice(0, fim) : conteudo;
-  const tom = bruto.match(/^Tom:\s*(?:\n\s*)?([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
+  const tom = bruto.match(/^Tom:\s*([A-G][#b]?m?)\s*$/im)?.[1] ?? null;
   const linhas = cifraBruta.split(/\r?\n/)
     .map(linha => linha
       .replace(/\*\*([^*]+)\*\*/g, (_, token: string) => REGEX_ACORDE.test(token.trim()) ? `{${token.trim()}}` : token)
@@ -243,6 +250,41 @@ function parsearCifraMarkdown(markdown: string, slug: string): Omit<CifraResult,
   return { titulo, artista, tomOriginal: tomResolvido, cifra, slug };
 }
 
+function normalizarMarcador(valor: string): string {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function ehMarcadorDeSecao(valor: string): boolean {
+  const marcador = normalizarMarcador(valor);
+  return /^(?:intro|vers(?:o|e)|coro|chorus|refrao(?:\s+final)?|pre[- ]?refrao|ponte|bridge|solo|final|outro|hook|parte(?:\s+\d+|\s+(?:primeira|segunda|terceira|quarta))?|primeira parte|segunda parte|terceira parte|quarta parte|estrofe|verse|pre-chorus)(?:\s+\d+)?$/i.test(marcador);
+}
+
+function encontrarInicioDaCifra(bruto: string): number {
+  const marcadores = /\[([^\]]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = marcadores.exec(bruto))) {
+    if (ehMarcadorDeSecao(match[1])) return match.index;
+  }
+
+  // Algumas cifras não têm seções. Nesse formato o primeiro acorde em
+  // negrito seguido de texto é o início mais seguro depois do cabeçalho.
+  const tom = bruto.match(/^Tom:.*$/im);
+  const inicioBusca = tom?.index !== undefined ? tom.index + tom[0].length : 0;
+  const restante = bruto.slice(inicioBusca);
+  const primeiraLinhaComAcorde = restante.search(/^\s*\*\*[A-G][#b]?[A-Za-z0-9+#/()º°-]*\*\*/im);
+  return primeiraLinhaComAcorde >= 0 ? inicioBusca + primeiraLinhaComAcorde : -1;
+}
+
+function encontrarFimDaCifra(conteudo: string): number {
+  let deslocamento = 0;
+  for (const linha of conteudo.split(/\r?\n/)) {
+    const limpa = normalizarMarcador(linha.replace(/^#+\s*/, ''));
+    if (limpa === 'informacoes da musica') return deslocamento;
+    deslocamento += linha.length + 1;
+  }
+  return -1;
+}
+
 /** Remove tags HTML mantendo texto e quebras de linha, depois decodifica entidades */
 function limparConteudoHtml(raw: string): string {
   const semTags = raw
@@ -253,7 +295,7 @@ function limparConteudoHtml(raw: string): string {
 }
 
 // Regex para reconhecer um acorde musical válido
-const REGEX_ACORDE = /^([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|dom)?(?:\d+)?(?:\/[A-G][#b]?)?(?:\([^)]*\))?)$/;
+const REGEX_ACORDE = /^([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|dom)?(?:\d+)?(?:[+#]|º|°)?(?:\/[A-G][#b]?)?(?:\([^)]*\))?)$/;
 
 /** Verifica se uma string é um acorde ou lista de acordes (linha de acordes) */
 function ehLinhaDeAcordes(linha: string): boolean {
